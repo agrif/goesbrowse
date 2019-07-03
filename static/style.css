@@ -1,0 +1,53 @@
+body {
+    font-family: sans-serif;
+}
+
+table {
+    border-collapse: collapse;
+}
+
+td, th {
+    text-align: left;
+    border: 1px solid #dddddd;
+    padding: 8px;
+}
+
+td.num, th.num {
+    text-align: right;
+}
+
+td.value, th.value {
+    border-right: 0;
+    padding-right: 0.5em;
+}
+
+td.unit, th.unit {
+    border-left: 0;
+    padding-left: 0;
+}
+
+tr:nth-child(even) {
+    background-color: #dddddd;
+}
+
+.centerpiece {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.filter {
+    background-color: #dddddd;
+    margin: 2px;
+    padding: 0 2px;
+    border: 1px solid #aaaaaa;
+    border-radius: 3px;
+}
+
+.pagination {
+    margin: 0.5em 3px;
+    text-align: right;
+}
+
+.filelist {
+    display: inline-block;
+}

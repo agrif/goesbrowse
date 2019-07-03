@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+<!-- http://flask.pocoo.org/snippets/44/ -->
+{% macro render_pagination(pagination) %}
+  <div class="pagination">
+    Pages:
+    {%- for page in pagination.iter_pages() %}
+      {% if page %}
+        {% if page != pagination.page %}
+          {% if page == 1 %}
+            <a href="{{ url_for_args(page=None) }}">{{ page }}</a>
+          {% else %}
+            <a href="{{ url_for_args(page=page) }}">{{ page }}</a>
+          {% endif %}
+        {% else %}
+          <strong>{{ page }}</strong>
+        {% endif %}
+      {% else %}
+        <span class="ellipsis">…</span>
+      {% endif %}
+    {%- endfor %}
+    {% if pagination.has_next %}
+      <a href="{{ url_for_args(page=pagination.page + 1) }}">Next &raquo;</a>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+  <p>Showing {{ pagination.start }} - {{ pagination.end }} of {{ pagination.total_count }} files, total size: {{ size|filesizeformat(True) }}</p>
+
+  <p>
+    <strong>Filters:</strong>
+    {% set deactivate = {} %}
+    {% for name, values in filtervalues.items() %}
+      {% if request.args.get(name) == values[0] %}
+        <span class="filter">{{ name }} = {{ values[0] }} <a href="{{ url_for_args(**{name: None}) }}">(x)</a></span>
+        {% set dummy = deactivate.__setitem__(name, None) %}
+      {% endif %}
+    {% endfor %}
+    {% if deactivate %}
+      <a href="{{ url_for_args(page=None, **deactivate) }}">(clear all filters)</a>
+    {% else %}
+      None.
+    {% endif %}
+  </p>
+  <p>
+    {% for name, values in filtervalues.items() %}
+      {% if request.args.get(name) != values[0] %}
+        <select name="{{ name }}" onchange="location = this.value;">
+          <option value="{{ url_for_args() }}">filter on {{ name }}...</option>
+          {% for value in values %}
+            <option value="{{ url_for_args(**{name: value}) }}">{{ value }}</option>
+          {% endfor %}
+        </select>
+      {% endif %}
+    {% endfor %}
+  </p>
+
+  <div class="filelist">
+    {{ render_pagination(pagination) }}
+    
+    <table>
+      <tr>
+        <th colspan="2">Date</th>
+        <th colspan="2">Size</th>
+        <th>Type</th>
+        <th>Source</th>
+        <th>Region</th>
+        <th>Channel</th>
+        <th><!-- extras --></th>
+        <th>URL</th>
+      </tr>
+      {% for file in files %}
+        <tr>
+          <td class="num value">{{ file.date.strftime('%a %b %d, %Y') }}</td>
+          <td class="unit">{{ file.date.strftime('%I:%M:%S %p %Z') }}</td>
+          {% set nicesize = file.size|filesizeformat(True) %}
+          {% set nicesizeparts = nicesize.split() %}
+          <td class="num value">{{ nicesizeparts[0] }}</td>
+          {% if nicesizeparts[1].lower().startswith('byte') %}
+            <td class="unit">B</td>
+          {% else %}
+            <td class="unit">{{ nicesizeparts[1] }}</td>
+          {% endif %}
+          <td>{{ file.type }}</td>
+          <td>{{ file.source }}</td>
+          <td>{% if file.region %}{{ file.region }}{% endif %}</td>
+          <td>{% if file.channel %}{{ file.channel }}{% endif %}</td>
+          <td><a href="{{ url_for('meta', id=file.rowid, slug=file.slug) }}">[META]</a></td>
+          <td><a href="{{ url_for('data', id=file.rowid, slug=file.slug) }}">{{ file.name }}.{{ file.type }}</a></td>
+        </tr>
+      {% endfor %}
+    </table>
+    
+    {{ render_pagination(pagination) }}
+  </div>
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <p><a href="{{ url_for('data_raw', id=file.rowid, slug=file.slug, type=file.type) }}">(raw)</a></p>
+  <p><a href="{{ url_for('meta', id=file.rowid, slug=file.slug) }}">(meta)</a></p>
+
+  {% if file.type.lower() == 'txt' %}
+    <pre>
+      {{ data }}
+    </pre>
+  {% else %}
+    <a href="{{ url_for('data_raw', id=file.rowid, slug=file.slug, type=file.type) }}"><img class="centerpiece" src="{{ url_for('data_raw', id=file.rowid, slug=file.slug, type=file.type) }}"></a>
+  {% endif %}
+{% endblock %}
