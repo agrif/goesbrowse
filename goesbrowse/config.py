@@ -30,7 +30,7 @@ class Config:
     @classmethod
     def load_file(cls, path, merge=None):
         root = path.parent
-        with open(path) as f:
+        with open(str(path)) as f:
             data = toml.load(f)
 
         if merge is None:
