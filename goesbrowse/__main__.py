@@ -6,7 +6,7 @@ import goesbrowse.web
 @click.group(cls=flask.cli.FlaskGroup, create_app=lambda scriptinfo: goesbrowse.web.app)
 @click.option('--config')
 def cli(config):
-    goesbrowse.web.app.config['configpath'] = config
+    goesbrowse.web.app.config['GOESBROWSE_CONFIG_PATH'] = config
 
 @cli.command()
 def update():

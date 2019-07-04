@@ -12,20 +12,18 @@ import goesbrowse.pagination
 
 app = flask.Flask(__name__)
 
-@app.before_first_request
-def setup_app():
-    global app
-    conf = goesbrowse.config.discover([app.config.get('configpath')])
-    app.config['config'] = conf
+def get_config():
+    conf = getattr(flask.g, '_goesbrowse_config', None)
+    if conf is None:
+        extras = [app.config.get('GOESBROWSE_CONFIG_PATH')]
+        conf = flask.g._goesbrowse_config = goesbrowse.config.discover(extras)
+    return conf
 
 def get_db():
-    global app
-    db = getattr(flask.g, 'database', None)
+    db = getattr(flask.g, '_goesbrowse_database', None)
     if db is None:
-        if not 'config' in app.config:
-            setup_app()
-        conf = app.config['config']
-        db = flask.g.database = goesbrowse.database.Database(
+        conf = get_config()
+        db = flask.g._goesbrowse_database = goesbrowse.database.Database(
             conf.files,
             conf.database,
             conf.quota,
@@ -109,8 +107,9 @@ def data(id, slug):
 def data_raw(id, slug, type):
     appdb = get_db()
     f = appdb.get_file(id)
-    if app.config['config'].use_x_accel_redirect:
-        base = app.config['config'].use_x_accel_redirect
+    conf = get_config()
+    if conf.use_x_accel_redirect:
+        base = conf.use_x_accel_redirect
         path = base + f['datapath']
         response = flask.make_response('')
         response.headers['Content-Type'] = ''
