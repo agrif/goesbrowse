@@ -7,6 +7,8 @@ import goesbrowse.application
 @click.option('--config')
 def cli(config):
     goesbrowse.application.app.config['GOESBROWSE_CONFIG_PATH'] = config
+    with goesbrowse.application.app.app_context():
+        goesbrowse.application.get_db()
 
 @cli.command()
 def update():

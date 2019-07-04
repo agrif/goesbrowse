@@ -1,3 +1,3 @@
-database = "/home/pi/received/database.db"
+database = "sqlite:////home/pi/received/database.db"
 files = "/home/pi/received/"
 quota = "16GiB"

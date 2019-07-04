@@ -1,151 +1,48 @@
 import datetime
 import json
 import pathlib
-import sqlite3
 
 import dateutil.tz
+import flask_migrate
+import flask_sqlalchemy
+import sqlalchemy.sql
 
-class Database:
-    def __init__(self, root, db, quota):
-        self.quota = quota
-        self.root = pathlib.Path(root).resolve()
-        self.dbpath = pathlib.Path(db).resolve()
+sql = flask_sqlalchemy.SQLAlchemy()
+migrate = flask_migrate.Migrate()
 
-        self.db = sqlite3.connect(str(self.dbpath))
-        self.db.row_factory = sqlite3.Row
-
-        self.setup()
-
-    def setup(self):
-        self.query('create table if not exists goesmeta (name text, value text)')
-        try:
-            version = self.version
-            if version != 0:
-                raise RuntimeError('unknown version, please remake database')
-            # the db is ready, and the correct version, so...
-            return
-        except KeyError:
-            # need to create database...
-            pass
-
-        self.query('create unique index idx_goesmeta_name on goesmeta (name)')
-        self.set_metadata('version', 0)
-
-        self.query('''create table goesfiles (
-        jsonpath text,
-        datapath text,
-        json text,
-        date integer,
-        size integer,
-        type text,
-        name text,
-        source text,
-        region text,
-        channel text
-        )''')
-
-        self.query('create unique index idx_goesfiles_jsonpath on goesfiles (jsonpath)')
-        self.query('create unique index idx_goesfiles_datapath on goesfiles (datapath)')
-        self.query('create index idx_goesfiles_date on goesfiles (date)')
-        self.query('create index idx_goesfiles_type on goesfiles (type)')
-        self.query('create index idx_goesfiles_name on goesfiles (name)')
-        self.query('create index idx_goesfiles_source on goesfiles (source)')
-        self.query('create index idx_goesfiles_region on goesfiles (region)')
-        self.query('create index idx_goesfiles_channel on goesfiles (channel)')
-
-        self.commit()
-
-    def query(self, query, *args):
-        cur = self.db.execute(query, args)
-        rv = cur.fetchall()
-        cur.close()
-        return rv
-
-    def query_one(self, query, *args):
-        rv = self.query(query, *args)
-        if rv:
-            return rv[0]
-        return None
-
-    def commit(self):
-        self.db.commit()
-
-    def get_metadata(self, name):
-        v = self.query_one('select value from goesmeta where name = ?', name)
-        if v is None:
-            raise KeyError('bad metadata key')
-        return v['value']
-
-    def set_metadata(self, name, value):
-        self.query('replace into goesmeta (name, value) values (?, ?)', name, str(value))
+class File(sql.Model):
+    id = sql.Column(sql.Integer, primary_key=True)
+    jsonpath = sql.Column(sql.Text, index=True, unique=True)
+    datapath = sql.Column(sql.Text, index=True, unique=True)
+    json = sql.Column(sql.JSON)
+    date = sql.Column(sql.DateTime, index=True)
+    size = sql.Column(sql.Integer, index=True)
+    type = sql.Column(sql.Text, index=True)
+    name = sql.Column(sql.Text, index=True)
+    source = sql.Column(sql.Text, index=True)
+    region = sql.Column(sql.Text, index=True)
+    channel = sql.Column(sql.Text, index=True)
 
     @property
-    def version(self):
-        return int(self.get_metadata('version'))
+    def slug(self):
+        return self.date.strftime('%Y-%m-%d/%H.%M.%S/') + self.name
 
-    def convert_file(self, f):
-        f = dict(f)
-        f['name'] = f['name'].replace('_', '-')
-        f['date'] = datetime.datetime.fromtimestamp(f['date']).replace(tzinfo=dateutil.tz.tzlocal())
-        f['slug'] = f['date'].strftime('%Y-%m-%d/%H.%M.%S/') + f['name']
-        return f
+class Database:
+    def __init__(self, root, quota):
+        self.quota = quota
+        self.root = pathlib.Path(root).resolve()
 
-    def make_where_clause(self, filters):
-        wheres = []
-        whereargs = []
-        for k, v in filters.items():
-            wheres.append('{} = ?'.format(k))
-            whereargs.append(v)
-        where = ''
-        if wheres:
-            where = 'where ' + ' and '.join(wheres)
-        return where, whereargs
-
-    def get_field_values(self, field, filters={}):
-        where, whereargs = self.make_where_clause(filters)
-        files = self.query('select distinct {} from goesfiles {}'.format(field, where), *whereargs)
-        values = [f[field] for f in files if f[field]]
-        values.sort()
-        return values
-
-    def get_files(self, filters={}, limit=None, offset=None):
-        where, whereargs = self.make_where_clause(filters)
-        query = 'select rowid, * from goesfiles'
-        if where:
-            query += ' ' + where
-        query += ' order by date desc'
-        if limit is not None:
-            query += ' limit {}'.format(limit)
-        if offset is not None:
-            query += ' offset {}'.format(offset)
-        
-        files = self.query(query, *whereargs)
-        return [self.convert_file(f) for f in files]
-
-    def get_file(self, id):
-        f = self.query_one('select rowid, * from goesfiles where rowid = ?', id)
-        if f:
-            return self.convert_file(f)
-        return None
-
-    def get_size(self, filters={}):
-        where, whereargs = self.make_where_clause(filters)
-        size = self.query_one('select sum(size) from goesfiles {}'.format(where), *whereargs)[0]
-        if size is None:
-            size = 0
-        return size
+    def get_size(self, query=None):
+        if query is None:
+            query = File.query
+        s = query.with_entities(sqlalchemy.sql.func.sum(File.size)).first()
+        if not s:
+            return 0
+        return s[0]
 
     @property
     def size(self):
         return self.get_size()
-
-    def get_count(self, filters={}):
-        where, whereargs = self.make_where_clause(filters)
-        return self.query_one('select count(rowid) from goesfiles {}'.format(where), *whereargs)[0]
-
-    @property
-    def count(self):
-        return self.get_count()
 
     def get_above_quota(self):
         if not self.quota:
@@ -156,8 +53,8 @@ class Database:
             return
 
         # fixme: https://gist.github.com/Gizmokid2005/2bb9cc3746f4f0ea0dbfb83e7d64a8da
-        for file in self.query('select rowid, size, datapath, jsonpath from goesfiles order by date'):
-            excess -= file['size']
+        for file in File.query.order_by(File.date).all():
+            excess -= file.size
             yield file
             if excess <= 0:
                 break
@@ -176,22 +73,22 @@ class Database:
     def update(self):
         for jsonpath in self.root.rglob('*.json'):
             self.update_file(jsonpath)
-        self.commit()
+        sql.session.commit()
 
     def clean(self, dry_run=False):
         for file in list(self.get_above_quota()):
-            print('deleting', file['datapath'])
+            print('deleting', file.datapath)
             if not dry_run:
-                self.query('delete from goesfiles where rowid = ?', file['rowid'])
-                (self.root / file['datapath']).unlink()
-                (self.root / file['jsonpath']).unlink()
+                sql.session.delete(file)
+                (self.root / file.datapath).unlink()
+                (self.root / file.jsonpath).unlink()
         if not dry_run:
-            self.commit()
+            sql.session.commit()
         self.remove_empty_dirs(self.root, dry_run=dry_run)
 
     def update_file(self, jsonpath):
         jsonpathrel = jsonpath.relative_to(self.root)
-        if self.query_one('select rowid from goesfiles where jsonpath = ?', str(jsonpathrel)):
+        if File.query.filter_by(jsonpath=str(jsonpathrel)).first():
             # already exists, skip it
             return
         print('updating', jsonpathrel)
@@ -237,18 +134,18 @@ class Database:
         # give our date a timezone
         date = date.replace(tzinfo=datetime.timezone.utc)
 
-        self.query('''replace into goesfiles (
-        jsonpath, datapath, json, date, size, type,
-        name, source, region, channel
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                   str(jsonpathrel),
-                   str(datapathrel),
-                   json.dumps(data),
-                   date.timestamp(),
-                   size,
-                   suffix,
-                   name,
-                   source,
-                   region,
-                   channel,
+        newfile = File(
+            jsonpath = str(jsonpathrel),
+            datapath = str(datapathrel),
+            json = data,
+            date = date,
+            size = size,
+            type = suffix,
+            name = name,
+            source = source,
+            region = region,
+            channel = channel,
         )
+
+        sql.session.add(newfile)
+

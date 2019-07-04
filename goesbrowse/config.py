@@ -18,7 +18,7 @@ class Config:
             setattr(self, k, trans(data.pop(k)))
     
     def merge(self, data, root):
-        self.set_if_present(data, 'database', lambda x: (root / pathlib.Path(x).expanduser()).resolve())
+        self.set_if_present(data, 'database')
         self.set_if_present(data, 'files', lambda x: (root / pathlib.Path(x).expanduser()).resolve())
 
         self.set_if_present(data, 'quota')
