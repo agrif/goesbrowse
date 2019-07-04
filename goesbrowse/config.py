@@ -3,13 +3,14 @@ import pathlib
 import sys
 
 import attr
+import humanfriendly
 import toml
 
 @attr.s
 class Config:
     database = attr.ib(default=None)
     files = attr.ib(default=None)
-    quota = attr.ib(default=16 * 1024 * 1024 * 1024)
+    quota = attr.ib(default=0)
     use_x_accel_redirect = attr.ib(default=None)
 
     def set_if_present(self, data, k, trans=lambda x: x):
@@ -19,7 +20,10 @@ class Config:
     def merge(self, data):
         self.set_if_present(data, 'database', lambda x: pathlib.Path(x).expanduser().resolve())
         self.set_if_present(data, 'files', lambda x: pathlib.Path(x).expanduser().resolve())
-        self.set_if_present(data, 'quota', int)
+
+        self.set_if_present(data, 'quota')
+        if not isinstance(self.quota, int):
+            self.quota = humanfriendly.parse_size(self.quota)
 
         self.set_if_present(data, 'use_x_accel_redirect')
 

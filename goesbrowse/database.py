@@ -130,7 +130,10 @@ class Database:
 
     def get_size(self, filters={}):
         where, whereargs = self.make_where_clause(filters)
-        return self.query_one('select sum(size) from goesfiles {}'.format(where), *whereargs)[0]
+        size = self.query_one('select sum(size) from goesfiles {}'.format(where), *whereargs)[0]
+        if size is None:
+            size = 0
+        return size
 
     @property
     def size(self):
@@ -145,9 +148,13 @@ class Database:
         return self.get_count()
 
     def get_above_quota(self):
+        if not self.quota:
+            return
+
         excess = self.size - self.quota
         if excess <= 0:
             return
+
         # fixme: https://gist.github.com/Gizmokid2005/2bb9cc3746f4f0ea0dbfb83e7d64a8da
         for file in self.query('select rowid, size, datapath, jsonpath from goesfiles order by date'):
             excess -= file['size']
@@ -155,7 +162,7 @@ class Database:
             if excess <= 0:
                 break
 
-    def remove_empty_dirs(self, path):
+    def remove_empty_dirs(self, path, dry_run=False):
         path = path.resolve()
         for sub in path.iterdir():
             if not sub.is_dir():
@@ -163,18 +170,24 @@ class Database:
             self.remove_empty_dirs(sub)
         if path != self.root and len(list(path.iterdir())) == 0:
             print('removing', path.relative_to(self.root))
-            path.rmdir()
+            if not dry_run:
+                path.rmdir()
 
     def update(self):
         for jsonpath in self.root.rglob('*.json'):
             self.update_file(jsonpath)
+        self.commit()
+
+    def clean(self, dry_run=False):
         for file in list(self.get_above_quota()):
             print('deleting', file['datapath'])
-            self.query('delete from goesfiles where rowid = ?', file['rowid'])
-            (self.root / file['datapath']).unlink()
-            (self.root / file['jsonpath']).unlink()
-        self.commit()
-        self.remove_empty_dirs(self.root)
+            if not dry_run:
+                self.query('delete from goesfiles where rowid = ?', file['rowid'])
+                (self.root / file['datapath']).unlink()
+                (self.root / file['jsonpath']).unlink()
+        if not dry_run:
+            self.commit()
+        self.remove_empty_dirs(self.root, dry_run=dry_run)
 
     def update_file(self, jsonpath):
         jsonpathrel = jsonpath.relative_to(self.root)

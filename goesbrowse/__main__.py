@@ -9,9 +9,15 @@ def cli(config):
     goesbrowse.web.app.config['configpath'] = config
 
 @cli.command()
-def updatedb():
+def update():
     appdb = goesbrowse.web.get_db()
     appdb.update()
+
+@cli.command()
+@click.option('--dry-run', '-n', is_flag=True)
+def clean(dry_run):
+    appdb = goesbrowse.web.get_db()
+    appdb.clean(dry_run=dry_run)
 
 @cli.command()
 def timelapse():
