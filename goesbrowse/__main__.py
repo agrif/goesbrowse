@@ -5,6 +5,8 @@ import datetime
 import math
 import collections
 
+import goesbrowse.config
+
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -13,25 +15,29 @@ import click
 import sqlite3
 import flask
 
-appdb = None
 app = flask.Flask(__name__)
-app.config['dbroot'] = os.environ.get('GOESBROWSE_DB')
-app.config['use-x-accel-redirect'] = os.environ.get('GOESBROWSE_X_ACCEL_REDIRECT')
+
 @app.before_first_request
-def open_db():
-    global appdb, app
-    if appdb is None:
-        appdb = Database(app.config['dbroot'])
-        app.config['db'] = appdb
+def setup_app():
+    global app
+    conf = goesbrowse.config.discover([app.config.get('configpath')])
+    app.config['config'] = conf
+
+def get_db():
+    global app
+    db = getattr(flask.g, 'database', None)
+    if db is None:
+        if not 'config' in app.config:
+            setup_app()
+        conf = app.config['config']
+        db = flask.g.database = Database(conf.files, conf.database, conf.quota)
+    return db
 
 class Database:
-    def __init__(self, root, quota=16 * 1024 * 1024 * 1024, dbpath=None):
+    def __init__(self, root, db, quota):
         self.quota = quota
         self.root = pathlib.Path(root).resolve()
-        if dbpath:
-            self.dbpath = pathlib.Path(root).resolve()
-        else:
-            self.dbpath = self.root / 'database.db'
+        self.dbpath = pathlib.Path(db).resolve()
 
         self.db = sqlite3.connect(str(self.dbpath))
         self.db.row_factory = sqlite3.Row
@@ -317,6 +323,7 @@ app.jinja_env.globals['url_for_args'] = url_for_args
 
 @app.route('/')
 def index():
+    appdb = get_db()
     filternames = ['type', 'source', 'region', 'channel']
     filters = {}
     for k in filternames:
@@ -351,6 +358,7 @@ def highlight_css():
 
 @app.route('/<int:id>/<path:slug>/meta')
 def meta(id, slug):
+    appdb = get_db()
     f = appdb.get_file(id)
     data = json.dumps(json.loads(f['json']), indent=2)
     highlighted = flask.Markup(pygments.highlight(data, pygments.lexers.JsonLexer(), codeFormatter))
@@ -358,11 +366,13 @@ def meta(id, slug):
 
 @app.route('/<int:id>/raw/meta/<path:slug>.json')
 def meta_raw(id, slug):
+    appdb = get_db()
     f = appdb.get_file(id)
     return flask.Response(f['json'], mimetype='application/json')
 
 @app.route('/<int:id>/<path:slug>/')
 def data(id, slug):
+    appdb = get_db()
     f = appdb.get_file(id)
     data = None
     if f['type'].lower() == 'txt':
@@ -372,9 +382,10 @@ def data(id, slug):
 
 @app.route('/<int:id>/raw/<path:slug>.<type>')
 def data_raw(id, slug, type):
+    appdb = get_db()
     f = appdb.get_file(id)
-    if app.config.get('use-x-accel-redirect'):
-        base = app.config.get('use-x-accel-redirect')
+    if app.config['config'].use_x_accel_redirect:
+        base = app.config['config'].use_x_accel_redirect
         path = base + f['datapath']
         response = flask.make_response('')
         response.headers['Content-Type'] = ''
@@ -384,17 +395,18 @@ def data_raw(id, slug, type):
         return flask.send_file(str(appdb.root / f['datapath']))
 
 @click.group(cls=flask.cli.FlaskGroup, create_app=lambda scriptinfo: app)
-@click.argument('root')
-def cli(root):
-    app.config['dbroot'] = root
-    open_db()
+@click.option('--config')
+def cli(config):
+    app.config['configpath'] = config
 
 @cli.command()
 def updatedb():
+    appdb = get_db()
     appdb.update()
 
 @cli.command()
 def timelapse():
+    appdb = get_db()
     # ffmpeg -f concat -i fstest.txt -vf "fps=10, scale=512:-1, drawtext=text='%{metadata\:imagedate}': fontcolor=0xaaaaaa: font=mono: fontsize=14: x=10: y=h-th-10" -pix_fmt yuv420p -c:v libx264 -preset veryslow -crf 19 -profile:v high -level 4.2 -movflags +faststart output.mp4
     postroll = 5
     rate = 1 / (8 * 60 * 60)

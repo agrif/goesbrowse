@@ -1,0 +1,55 @@
+import os
+import pathlib
+import sys
+
+import attr
+import toml
+
+@attr.s
+class Config:
+    database = attr.ib(default=None)
+    files = attr.ib(default=None)
+    quota = attr.ib(default=16 * 1024 * 1024 * 1024)
+    use_x_accel_redirect = attr.ib(default=None)
+
+    def set_if_present(self, data, k, trans=lambda x: x):
+        if k in data:
+            setattr(self, k, trans(data.pop(k)))
+    
+    def merge(self, data):
+        self.set_if_present(data, 'database', lambda x: pathlib.Path(x).expanduser().resolve())
+        self.set_if_present(data, 'files', lambda x: pathlib.Path(x).expanduser().resolve())
+        self.set_if_present(data, 'quota', int)
+
+        self.set_if_present(data, 'use_x_accel_redirect')
+
+    @classmethod
+    def load_file(cls, path, merge=None):
+        root = path.parent
+        with open(path) as f:
+            data = toml.load(f)
+
+        if merge is None:
+            merge = cls()
+
+        for path in data.pop('inherit', []):
+            cls.load_file(root / path, merge=merge)
+
+        merge.merge(data)
+        if data:
+            raise RuntimeError('unknown config keys: {}'.format(list(data.keys())))
+        return merge
+
+def discover(extras=[]):
+    paths = extras + [os.environ.get('GOESBROWSE'), '~/.goesbrowse.toml']
+    paths = [pathlib.Path(p).expanduser() for p in paths if p]
+    paths = [p for p in paths if p.exists()]
+    
+    for path in paths:
+        return Config.load_file(path)
+    raise RuntimeError('no config found')
+
+if __name__ == '__main__':
+    v = discover(sys.argv[1:])
+    print(v)
+
