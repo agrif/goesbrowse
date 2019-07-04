@@ -17,9 +17,9 @@ class Config:
         if k in data:
             setattr(self, k, trans(data.pop(k)))
     
-    def merge(self, data):
-        self.set_if_present(data, 'database', lambda x: pathlib.Path(x).expanduser().resolve())
-        self.set_if_present(data, 'files', lambda x: pathlib.Path(x).expanduser().resolve())
+    def merge(self, data, root):
+        self.set_if_present(data, 'database', lambda x: (root / pathlib.Path(x).expanduser()).resolve())
+        self.set_if_present(data, 'files', lambda x: (root / pathlib.Path(x).expanduser()).resolve())
 
         self.set_if_present(data, 'quota')
         if not isinstance(self.quota, int):
@@ -39,7 +39,7 @@ class Config:
         for path in data.pop('inherit', []):
             cls.load_file(root / path, merge=merge)
 
-        merge.merge(data)
+        merge.merge(data, root)
         if data:
             raise RuntimeError('unknown config keys: {}'.format(list(data.keys())))
         return merge
