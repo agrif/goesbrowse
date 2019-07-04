@@ -1,0 +1,5 @@
+inherit = [
+    "goesbrowse.toml"
+]
+
+use_x_accel_redirect = "/x-dbroot/"
