@@ -1,27 +1,27 @@
 import click
 import flask
 
-import goesbrowse.web
+import goesbrowse.application
 
-@click.group(cls=flask.cli.FlaskGroup, create_app=lambda scriptinfo: goesbrowse.web.app)
+@click.group(cls=flask.cli.FlaskGroup, create_app=lambda scriptinfo: goesbrowse.application.app)
 @click.option('--config')
 def cli(config):
-    goesbrowse.web.app.config['GOESBROWSE_CONFIG_PATH'] = config
+    goesbrowse.application.app.config['GOESBROWSE_CONFIG_PATH'] = config
 
 @cli.command()
 def update():
-    appdb = goesbrowse.web.get_db()
+    appdb = goesbrowse.application.get_db()
     appdb.update()
 
 @cli.command()
 @click.option('--dry-run', '-n', is_flag=True)
 def clean(dry_run):
-    appdb = goesbrowse.web.get_db()
+    appdb = goesbrowse.application.get_db()
     appdb.clean(dry_run=dry_run)
 
 @cli.command()
 def timelapse():
-    appdb = goesbrowse.web.get_db()
+    appdb = goesbrowse.application.get_db()
     # ffmpeg -f concat -i fstest.txt -vf "fps=10, scale=512:-1, drawtext=text='%{metadata\:imagedate}': fontcolor=0xaaaaaa: font=mono: fontsize=14: x=10: y=h-th-10" -pix_fmt yuv420p -c:v libx264 -preset veryslow -crf 19 -profile:v high -level 4.2 -movflags +faststart output.mp4
     postroll = 5
     rate = 1 / (8 * 60 * 60)

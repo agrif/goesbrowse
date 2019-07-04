@@ -1,1 +1,1 @@
-from goesbrowse.web import app
+from goesbrowse.application import app
