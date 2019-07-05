@@ -21,7 +21,9 @@
       {{ data }}
     </pre>
   {% else %}
-    <a href="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}"><img id="mapImage" class="centerpiece" src="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}"></a>
-    <canvas id="mapCanvas"></canvas>
+    <a href="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}">
+      <img id="mapImage" class="centerpiece" src="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}">
+      <canvas id="mapCanvas"></canvas>
+    </a>
   {% endif %}
 {% endblock %}
