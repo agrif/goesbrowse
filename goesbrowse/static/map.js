@@ -18,7 +18,8 @@ function mapSetup(imageId, canvasId, metaUrl, geoUrls) {
         }
 
         fetchNextGeo().then(function() {
-            var lon_0 = -75.0; // FIXME
+            var projName = meta['ImageNavigation']['ProjectionName'];
+            var lon_0 = parseFloat(projName.match(/geos\(([-+0-9.]+)\)/i)[1]);
             var proj = makeGeosProj(35786023.0, true, lon_0);
 
             function resize(redraw) {
