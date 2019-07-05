@@ -1,5 +1,17 @@
 {% extends "base.html" %}
 
+{% block head %}
+  <script src="{{ url_for('static', filename='map.js') }}"></script>
+  <script>
+    window.addEventListener("load", function() {
+      mapSetup("mapImage", "mapCanvas", "{{ url_for('meta_raw', id=file.id, slug=file.slug) }}", [
+        "{{ url_for('static', filename='geojson/ne_50m_admin_0_countries_lakes.json') }}",
+        "{{ url_for('static', filename='geojson/ne_50m_admin_1_states_provinces_lakes.json') }}",
+      ]);
+    });
+  </script>
+{% endblock %}
+
 {% block content %}
   <p><a href="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}">(raw)</a></p>
   <p><a href="{{ url_for('meta', id=file.id, slug=file.slug) }}">(meta)</a></p>
@@ -9,6 +21,7 @@
       {{ data }}
     </pre>
   {% else %}
-    <a href="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}"><img class="centerpiece" src="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}"></a>
+    <a href="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}"><img id="mapImage" class="centerpiece" src="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}"></a>
+    <canvas id="mapCanvas"></canvas>
   {% endif %}
 {% endblock %}
