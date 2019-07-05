@@ -27,6 +27,10 @@ class File(sql.Model):
     def slug(self):
         return self.date.strftime('%Y-%m-%d/%H.%M.%S/') + self.name
 
+    @property
+    def localdate(self):
+        return self.date.replace(tzinfo=datetime.timezone.utc).astimezone(dateutil.tz.tzlocal())
+
 class Database:
     def __init__(self, root, quota):
         self.quota = quota

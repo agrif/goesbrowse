@@ -2,6 +2,7 @@ import collections
 import json
 
 import flask
+import flask_humanize
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -11,6 +12,7 @@ import goesbrowse.config
 import goesbrowse.database
 
 app = flask.Flask(__name__)
+humanize = flask_humanize.Humanize(app)
 
 codeFormatter = pygments.formatters.HtmlFormatter()
 
