@@ -59,7 +59,7 @@ def get_geojson():
     if geo is None:
         geo = {}
         for k, v in GEOJSON_FILES.items():
-            with app.open_resource(v) as f:
+            with app.open_resource(v, mode='r') as f:
                 geo[k] = geojson.load(f)
         flask.g._goesbrowse_geojson = geo
     return geo
