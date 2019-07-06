@@ -96,7 +96,7 @@ def index():
             filtervalues[k] = [v[0] for v in values if v[0]]
             filtervalues[k].sort()
 
-    size = query.with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.File.size)).first()
+    size = query.join(goesbrowse.database.Product).with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.Product.size)).first()
     if size is None:
         size = 0
     else:
@@ -121,14 +121,14 @@ def highlight_css():
 @app.route('/<int:id>/<path:slug>/meta')
 def meta(id, slug):
     f = goesbrowse.database.File.query.get_or_404(id)
-    data = json.dumps(f.json, indent=2)
+    data = json.dumps(f.meta, indent=2)
     highlighted = flask.Markup(pygments.highlight(data, pygments.lexers.JsonLexer(), codeFormatter))
     return flask.render_template('meta.html', highlighted=highlighted, file=f)
 
 @app.route('/<int:id>/raw/meta/<path:slug>.json')
 def meta_raw(id, slug):
     f = goesbrowse.database.File.query.get_or_404(id)
-    return flask.Response(json.dumps(f.json), mimetype='application/json')
+    return flask.Response(json.dumps(f.meta), mimetype='application/json')
 
 @app.route('/<int:id>/<path:slug>/')
 def data(id, slug):
@@ -136,9 +136,9 @@ def data(id, slug):
     f = goesbrowse.database.File.query.get_or_404(id)
     data = None
     if f.type.lower() == 'txt':
-        with open(str(appdb.root / f.datapath)) as dataf:
+        with open(str(appdb.root / f.get_product('MAIN').path)) as dataf:
             data = dataf.read()
-    return flask.render_template('data.html', file=f, data=data)
+    return flask.render_template('data.html', file=f, product=f.get_product('MAIN'), data=data)
 
 @app.route('/<int:id>/raw/<path:slug>.<type>')
 def data_raw(id, slug, type):
@@ -147,13 +147,13 @@ def data_raw(id, slug, type):
     conf = get_config()
     if conf.use_x_accel_redirect:
         base = conf.use_x_accel_redirect
-        path = base + f.datapath
+        path = base + f.get_product('MAIN').path
         response = flask.make_response('')
         response.headers['Content-Type'] = ''
         response.headers['X-Accel-Redirect'] = path
         return response
     else:
-        return flask.send_file(str(appdb.root / f.datapath))
+        return flask.send_file(str(appdb.root / f.get_product('MAIN').path))
 
 @app.route('/map/<int:id>.svg')
 @cache.cached(timeout=60 * 60 * 24)

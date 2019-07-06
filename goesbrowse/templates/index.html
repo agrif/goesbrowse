@@ -93,7 +93,7 @@
         <td class="has-text-right">{{ file.localdate.strftime('%a %b %d, %Y') }}</td>
         <td>{{ file.localdate.strftime('%I:%M:%S %p %Z') }}</td>
         <td>{{ file.localdate.replace(tzinfo=None)|humanize() }}</td>
-        {% set nicesize = file.size|humanize('naturalsize') %}
+        {% set nicesize = file.get_product('MAIN').size|humanize('naturalsize') %}
         {% set nicesizeparts = nicesize.split() %}
         <td class="has-text-right">{{ nicesizeparts[0] }}</td>
         {% if nicesizeparts[1].lower().startswith('byte') %}

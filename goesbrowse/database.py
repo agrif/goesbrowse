@@ -1,4 +1,5 @@
 import datetime
+import enum
 import json
 import math
 import pathlib
@@ -16,11 +17,8 @@ migrate = flask_migrate.Migrate()
 
 class File(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
-    jsonpath = sql.Column(sql.Text, index=True, unique=True)
-    datapath = sql.Column(sql.Text, index=True, unique=True)
-    json = sql.Column(sql.JSON)
+    meta = sql.Column(sql.JSON)
     date = sql.Column(sql.DateTime, index=True)
-    size = sql.Column(sql.Integer, index=True)
     type = sql.Column(sql.Text, index=True)
     name = sql.Column(sql.Text, index=True)
     source = sql.Column(sql.Text, index=True)
@@ -28,6 +26,11 @@ class File(sql.Model):
     channel = sql.Column(sql.Text, index=True)
 
     projection_id = sql.Column(sql.Integer, sql.ForeignKey('projection.id'))
+    products = sql.relationship(
+        'Product',
+        backref=sql.backref('file', lazy=False),
+        lazy=False,
+    )
 
     @property
     def slug(self):
@@ -37,8 +40,31 @@ class File(sql.Model):
     def localdate(self):
         return self.date.replace(tzinfo=datetime.timezone.utc).astimezone(dateutil.tz.tzlocal())
 
+    def get_product(self, type):
+        for prod in self.products:
+            if prod.type == type or prod.type.name == type:
+                return prod
+        return None
+
+class ProductType(enum.Enum):
+    MAIN = enum.auto()
+    META = enum.auto()
+    THUMBNAIL = enum.auto()
+    TIMELAPSE = enum.auto()
+
+class Product(sql.Model):
+    id = sql.Column(sql.Integer, primary_key=True)
+    path = sql.Column(sql.Text, index=True, unique=True)
+    size = sql.Column(sql.Integer, index=True)
+    type = sql.Column(sql.Enum(ProductType), index=True)
+
+    file_id = sql.Column(sql.Integer, sql.ForeignKey('file.id'))
+
 class Projection(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
+
+    # these are sacrosanct: do not modify their names without serious
+    # migration munging...
     width = sql.Column(sql.Integer)
     height = sql.Column(sql.Integer)
     x_offset = sql.Column(sql.Integer)
@@ -142,7 +168,8 @@ class Database:
     def get_size(self, query=None):
         if query is None:
             query = File.query
-        s = query.with_entities(sqlalchemy.sql.func.sum(File.size)).first()
+        query = query.join(Product.file)
+        s = query.with_entities(sqlalchemy.sql.func.sum(Product.size)).first()
         if not s:
             return 0
         return s[0]
@@ -161,7 +188,8 @@ class Database:
 
         # fixme: https://gist.github.com/Gizmokid2005/2bb9cc3746f4f0ea0dbfb83e7d64a8da
         for file in File.query.order_by(File.date).all():
-            excess -= file.size
+            for prod in file.products:
+                excess -= prod.size
             yield file
             if excess <= 0:
                 break
@@ -184,18 +212,20 @@ class Database:
 
     def clean(self, dry_run=False):
         for file in list(self.get_above_quota()):
-            print('deleting', file.datapath)
+            for prod in file.products:
+                print('deleting', prod.path)
+                if not dry_run:
+                    (self.root / prod.path).unlink()
+                    sql.session.delete(prod)
             if not dry_run:
                 sql.session.delete(file)
-                (self.root / file.datapath).unlink()
-                (self.root / file.jsonpath).unlink()
         if not dry_run:
             sql.session.commit()
         self.remove_empty_dirs(self.root, dry_run=dry_run)
 
     def update_file(self, jsonpath):
         jsonpathrel = jsonpath.relative_to(self.root)
-        if File.query.filter_by(jsonpath=str(jsonpathrel)).first():
+        if Product.query.filter_by(path=str(jsonpathrel)).first():
             # already exists, skip it
             return
         print('updating', jsonpathrel)
@@ -205,7 +235,8 @@ class Database:
         
         datapath = (self.root / pathlib.Path(data['Path'])).resolve()
         datapathrel = datapath.relative_to(self.root)
-        size = datapath.stat().st_size
+        datasize = datapath.stat().st_size
+        jsonsize = jsonpath.stat().st_size
         suffix = datapathrel.suffix.lstrip('.')
 
         # attempt some heuristics to split filename
@@ -246,11 +277,8 @@ class Database:
             proj = proj.find_or_insert()
 
         newfile = File(
-            jsonpath = str(jsonpathrel),
-            datapath = str(datapathrel),
-            json = data,
+            meta = data,
             date = date,
-            size = size,
             type = suffix,
             name = name,
             source = source,
@@ -260,4 +288,21 @@ class Database:
         )
 
         sql.session.add(newfile)
+
+        main = Product(
+            path = str(datapath),
+            size = datasize,
+            type = ProductType.MAIN,
+            file = newfile,
+        )
+
+        meta = Product(
+            path = str(jsonpath),
+            size = jsonsize,
+            type = ProductType.META,
+            file = newfile,
+        )
+
+        sql.session.add(main)
+        sql.session.add(meta)
 
