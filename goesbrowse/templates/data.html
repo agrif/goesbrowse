@@ -1,12 +1,14 @@
 {% extends "base.html" %}
 
 {% block head %}
-  <script src="{{ url_for('static', filename='map.js') }}"></script>
-  <script>
-    window.addEventListener("load", function() {
-      mapSetup("baseImage", "mapImage");
-    });
-  </script>
+  {% if file.projection %}
+    <script src="{{ url_for('static', filename='map.js') }}"></script>
+    <script>
+      window.addEventListener("load", function() {
+        mapSetup("baseImage", "mapImage");
+      });
+    </script>
+  {% endif %}
 {% endblock %}
 
 {% block content %}
@@ -20,7 +22,9 @@
   {% else %}
     <a href="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}">
       <img id="baseImage" class="centerpiece" src="{{ url_for('data_raw', id=file.id, slug=file.slug, type=file.type) }}">
-      <img id="mapImage" src="{{ url_for('map_raw', id=file.id, slug=file.slug) }}">
+      {% if file.projection %}
+        <img id="mapImage" src="{{ url_for('map_raw', id=file.projection_id) }}">
+      {% endif %}
     </a>
 
   {% endif %}

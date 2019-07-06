@@ -1,11 +1,15 @@
 import datetime
 import json
+import math
 import pathlib
+import re
 
 import dateutil.tz
 import flask_migrate
 import flask_sqlalchemy
 import sqlalchemy.sql
+
+import goesbrowse.projection
 
 sql = flask_sqlalchemy.SQLAlchemy()
 migrate = flask_migrate.Migrate()
@@ -23,6 +27,8 @@ class File(sql.Model):
     region = sql.Column(sql.Text, index=True)
     channel = sql.Column(sql.Text, index=True)
 
+    projection_id = sql.Column(sql.Integer, sql.ForeignKey('projection.id'))
+
     @property
     def slug(self):
         return self.date.strftime('%Y-%m-%d/%H.%M.%S/') + self.name
@@ -30,6 +36,103 @@ class File(sql.Model):
     @property
     def localdate(self):
         return self.date.replace(tzinfo=datetime.timezone.utc).astimezone(dateutil.tz.tzlocal())
+
+class Projection(sql.Model):
+    id = sql.Column(sql.Integer, primary_key=True)
+    width = sql.Column(sql.Integer)
+    height = sql.Column(sql.Integer)
+    x_offset = sql.Column(sql.Integer)
+    y_offset = sql.Column(sql.Integer)
+    x_scale = sql.Column(sql.Integer)
+    y_scale = sql.Column(sql.Integer)
+    lon_0 = sql.Column(sql.Float)
+
+    files = sql.relationship(
+        'File',
+        backref=sql.backref('projection', lazy=True),
+        lazy=True,
+    )
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.reload()
+
+    @sql.reconstructor
+    def reload(self):
+        self.proj = goesbrowse.projection.GeosProj(h=35786023.0, sweep='x', lon_0=self.lon_0)
+
+    def forward(self, lam, phi):
+        lam = math.radians(lam)
+        phi = math.radians(phi)
+        pt = self.proj.forward(lam, phi)
+        if pt is None:
+            return None
+        x, y = pt
+        x *= self.x_scale * goesbrowse.projection.SCALE_FACTOR
+        x += self.x_offset
+        y *= -self.y_scale * goesbrowse.projection.SCALE_FACTOR
+        y += self.y_offset
+        return x, y
+
+    def find_or_insert(self):
+        found = self.query.filter_by(
+            width=self.width,
+            height=self.height,
+            x_offset=self.x_offset,
+            y_offset=self.y_offset,
+            x_scale=self.x_scale,
+            y_scale=self.y_scale,
+            lon_0=self.lon_0,
+        ).first()
+        if found:
+            return found
+
+        sql.session.add(self)
+        return self
+
+    @classmethod
+    def from_nav(cls, width, height, nav):
+        try:
+            x_offset = nav['ColumnOffset']
+            y_offset = nav['LineOffset']
+            x_scale = nav['ColumnScaling']
+            y_scale = nav['LineScaling']
+            proj_name = nav['ProjectionName']
+        except KeyError:
+            return None
+
+        m = re.match('^geos\\(([-+0-9]+\\.?[0-9]*)\\)$', proj_name)
+        if not m:
+            return None
+        lon_0 = float(m.group(1))
+
+        return cls(
+            width=width,
+            height=height,
+            x_offset=x_offset,
+            y_offset=y_offset,
+            x_scale=x_scale,
+            y_scale=y_scale,
+            lon_0=lon_0,
+        )
+
+    @classmethod
+    def from_meta(cls, meta):
+        try:
+            width = meta['SegmentIdentification']['MaxColumn']
+            height = meta['SegmentIdentification']['MaxLine']
+        except KeyError:
+            try:
+                width = meta['ImageStructure']['Columns']
+                height = meta['ImageStructure']['Lines']
+            except KeyError:
+                return None
+        try:
+            nav = meta['ImageNavigation']
+        except KeyError:
+            return None
+
+        return cls.from_nav(width, height, nav)
 
 class Database:
     def __init__(self, root, quota):
@@ -138,6 +241,10 @@ class Database:
         # give our date a timezone
         date = date.replace(tzinfo=datetime.timezone.utc)
 
+        proj = Projection.from_meta(data)
+        if proj:
+            proj = proj.find_or_insert()
+
         newfile = File(
             jsonpath = str(jsonpathrel),
             datapath = str(datapathrel),
@@ -149,6 +256,7 @@ class Database:
             source = source,
             region = region,
             channel = channel,
+            projection = proj,
         )
 
         sql.session.add(newfile)

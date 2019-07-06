@@ -155,43 +155,19 @@ def data_raw(id, slug, type):
     else:
         return flask.send_file(str(appdb.root / f.datapath))
 
-@app.route('/<int:id>/map/<path:slug>.svg')
+@app.route('/map/<int:id>.svg')
 @cache.cached(timeout=60 * 60 * 24)
-def map_raw(id, slug):
-    f = goesbrowse.database.File.query.get_or_404(id)
-    try:
-        nav = f.json['ImageNavigation']
-        try:
-            width = f.json['SegmentIdentification']['MaxColumn']
-            height = f.json['SegmentIdentification']['MaxLine']
-        except KeyError:
-            width = f.json['ImageStructure']['Columns']
-            height = f.json['ImageStructure']['Lines']
-    except KeyError:
-        flask.abort(404)
-
-    lon_0 = float(re.match('^geos\\(([-+0-9.]+)\\)$', nav['ProjectionName']).group(1))
-    proj = goesbrowse.projection.GeosProj(h=35786023.0, sweep='x', lon_0=lon_0)
+def map_raw(id):
+    proj = goesbrowse.database.Projection.query.get_or_404(id)
 
     geo = get_geojson()
-    d = svgwrite.Drawing(size=(width, height))
-    d.viewbox(0, 0, width, height)
-
-    xoff = nav['ColumnOffset']
-    xscale = nav['ColumnScaling'] * goesbrowse.projection.SCALE_FACTOR
-    yoff = nav['LineOffset']
-    yscale = nav['LineScaling'] * goesbrowse.projection.SCALE_FACTOR
-    def viewport(pt):
-        if pt is None:
-            return None
-        x = xoff + xscale * pt[0]
-        y = yoff - yscale * pt[1]
-        return x, y
+    d = svgwrite.Drawing(size=(proj.width, proj.height))
+    d.viewbox(0, 0, proj.width, proj.height)
 
     def draw_polygon(lines, poly):
-        pts = (viewport(proj.forward(math.radians(pt[0]), math.radians(pt[1]))) for pt in poly)
+        pts = (proj.forward(*pt) for pt in poly)
         pts = [pt for pt in pts if pt]
-        if not any([p[0] >= 0 and p[0] < width and p[1] >= 0 and p[1] < height for p in pts]):
+        if not any([p[0] >= 0 and p[0] < proj.width and p[1] >= 0 and p[1] < proj.height for p in pts]):
             return
         if pts:
             lines.add(d.polygon(pts))
