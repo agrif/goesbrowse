@@ -21,6 +21,7 @@ app = flask.Flask(__name__)
 app.config['CACHE_TYPE'] = 'simple'
 humanize = flask_humanize.Humanize(app)
 cache = flask_caching.Cache(app)
+VERY_LONG_TIME = 60 * 60 * 24
 
 codeFormatter = pygments.formatters.HtmlFormatter()
 
@@ -114,9 +115,12 @@ def index():
     return flask.render_template('index.html', files=pagination.items, size=size, filtervalues=filtervalues, pagination=pagination)
 
 @app.route('/highlight.css')
+@cache.cached(timeout=VERY_LONG_TIME)
 def highlight_css():
     data = codeFormatter.get_style_defs('.highlight')
-    return flask.Response(data, mimetype='text/css')
+    response = flask.Response(data, mimetype='text/css')
+    response.cache_control.max_age = VERY_LONG_TIME
+    return response
 
 @app.route('/<int:id>/<path:slug>/meta')
 def meta(id, slug):
@@ -156,7 +160,7 @@ def data_raw(id, slug, type):
         return flask.send_file(str(appdb.root / f.get_product('MAIN').path))
 
 @app.route('/map/<int:id>.svg')
-@cache.cached(timeout=60 * 60 * 24)
+@cache.cached(timeout=VERY_LONG_TIME)
 def map_raw(id):
     proj = goesbrowse.database.Projection.query.get_or_404(id)
 
@@ -186,5 +190,5 @@ def map_raw(id):
         geojson.utils.map_geometries(lambda g: draw_geometry(lines, g), v)
 
     response = flask.Response(d.tostring(), mimetype='image/svg+xml')
-    response.cache_control.max_age = 60 * 60 * 24
+    response.cache_control.max_age = VERY_LONG_TIME
     return response
