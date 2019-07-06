@@ -71,7 +71,7 @@ def url_for_args(**kwargs):
     for k, v in flask.request.args.items():
         args[k] = v
     for k, v in kwargs.items():
-        if v is None:
+        if v is None or (k == 'page' and v == 1):
             if k in args:
                 del args[k]
         else:
