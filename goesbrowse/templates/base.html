@@ -2,13 +2,19 @@
 <html>
   <head>
     <title>GOESBrowse {% block title %}{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='vendor/bulma.min.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='style.css') }}">
     {% block head %}{% endblock %}
   </head>
 
   <body>
-    <h1><a href="{{ url_for('index') }}">GOESBrowse</a></h1>
-
-    {% block content %}{% endblock %}
+    <section class="section">
+      <div class="container">
+        <h1 class="title"><a href="{{ url_for('index') }}">GOESBrowse</a></h1>
+        
+        {% block content %}{% endblock %}
+      </div>
+    </section>
   </body>
 </html>
