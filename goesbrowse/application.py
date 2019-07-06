@@ -185,4 +185,6 @@ def map_raw(id):
         lines = d.add(d.g(fill='none', stroke='white', stroke_width=5, stroke_opacity=0.5, id=k))
         geojson.utils.map_geometries(lambda g: draw_geometry(lines, g), v)
 
-    return flask.Response(d.tostring(), mimetype='image/svg+xml')
+    response = flask.Response(d.tostring(), mimetype='image/svg+xml')
+    response.cache_control.max_age = 60 * 60 * 24
+    return response
