@@ -46,11 +46,12 @@ class File(sql.Model):
                 return prod
         return None
 
-class ProductType(enum.Enum):
-    MAIN = enum.auto()
-    META = enum.auto()
-    THUMBNAIL = enum.auto()
-    TIMELAPSE = enum.auto()
+ProductType = enum.Enum('ProductType', [
+    'MAIN',
+    'META',
+    'THUMBNAIL',
+    'TIMELAPSE',
+])
 
 class Product(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
