@@ -36,7 +36,7 @@ def timelapse():
         if lastdate is not None:
             duration = f.localdate - lastdate
             print('duration {}'.format(duration.total_seconds() * rate))
-        print('file {}'.format(f.datapath))
+        print('file {}'.format(f.get_product('MAIN').path))
         print('file_packet_metadata imagedate=\'{:%a %b %d %Y, %H:%M:%S %Z}\''.format(f.localdate))
         lastdate = f.localdate
     print('duration {}'.format(postroll))
