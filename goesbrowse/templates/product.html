@@ -2,6 +2,7 @@
 
 {% block head %}
   {% if file.projection and product.ext == 'jpg' %}
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='vendor/bulmaswatch.min.css') }}">
     <script src="{{ url_for('static', filename='map.js') }}"></script>
     <script>
       window.addEventListener("load", function() {
