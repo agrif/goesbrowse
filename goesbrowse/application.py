@@ -22,6 +22,9 @@ app.config['CACHE_TYPE'] = 'simple'
 humanize = flask_humanize.Humanize(app)
 cache = flask_caching.Cache(app)
 VERY_LONG_TIME = 60 * 60 * 24
+app.jinja_env.globals['ProductType'] = goesbrowse.database.ProductType
+app.jinja_env.add_extension('jinja2_highlight.HighlightExtension')
+app.jinja_env.extend(jinja2_highlight_cssclass = 'highlight')
 
 codeFormatter = pygments.formatters.HtmlFormatter()
 
@@ -79,6 +82,16 @@ def url_for_args(**kwargs):
     return flask.url_for(flask.request.endpoint, **args)
 app.jinja_env.globals['url_for_args'] = url_for_args
 
+# helper to make a url to a product, raw or not
+def url_for_product(product, raw=False):
+    date = product.file.date.strftime('%Y-%m-%d')
+    time = product.file.date.strftime('%H.%M.%S')
+    if raw:
+        return flask.url_for('product_raw', id=product.file.id, date=date, time=time, name=product.file.name, type=product.type.name.lower(), ext=product.ext)
+    else:
+        return flask.url_for('product', id=product.file.id, date=date, time=time, name=product.file.name, type=product.type.name.lower())
+app.jinja_env.globals['url_for_product'] = url_for_product
+
 @app.route('/')
 def index():
     filternames = ['type', 'source', 'region', 'channel']
@@ -122,46 +135,46 @@ def highlight_css():
     response.cache_control.max_age = VERY_LONG_TIME
     return response
 
-@app.route('/<int:id>/<path:slug>/meta')
-def meta(id, slug):
+@app.route('/<int:id>/<date>/<time>/<name>/', defaults={'type': 'main'})
+@app.route('/<int:id>/<date>/<time>/<name>/<type>/')
+def product(id, date, time, name, type):
     f = goesbrowse.database.File.query.get_or_404(id)
-    data = json.dumps(f.meta, indent=2)
-    highlighted = flask.Markup(pygments.highlight(data, pygments.lexers.JsonLexer(), codeFormatter))
-    return flask.render_template('meta.html', highlighted=highlighted, file=f)
+    product = f.get_product(type.upper())
+    if not product:
+        flask.abort(404)
 
-@app.route('/<int:id>/raw/meta/<path:slug>.json')
-def meta_raw(id, slug):
-    f = goesbrowse.database.File.query.get_or_404(id)
-    return flask.Response(json.dumps(f.meta), mimetype='application/json')
+    content = None
+    if product.ext == 'txt':
+        appdb = get_db()
+        with open(str(appdb.root / product.path), 'r') as dataf:
+            content = dataf.read()
+    if product.ext == 'json':
+        content = json.dumps(f.meta, indent=2)
+    return flask.render_template('product.html', file=f, product=product, content=content)
 
-@app.route('/<int:id>/<path:slug>/')
-def data(id, slug):
-    appdb = get_db()
+@app.route('/<int:id>/<date>/<time>/<name>.<ext>', defaults={'type': 'main'})
+@app.route('/<int:id>/<date>/<time>/<name>.<type>.<ext>')
+def product_raw(id, date, time, name, type, ext):
     f = goesbrowse.database.File.query.get_or_404(id)
-    data = None
-    if f.type.lower() == 'txt':
-        with open(str(appdb.root / f.get_product('MAIN').path)) as dataf:
-            data = dataf.read()
-    return flask.render_template('data.html', file=f, product=f.get_product('MAIN'), data=data)
+    product = f.get_product(type.upper())
+    if not product:
+        flask.abort(404)
 
-@app.route('/<int:id>/raw/<path:slug>.<type>')
-def data_raw(id, slug, type):
-    f = goesbrowse.database.File.query.get_or_404(id)
     appdb = get_db()
     conf = get_config()
     if conf.use_x_accel_redirect:
         base = conf.use_x_accel_redirect
-        path = base + f.get_product('MAIN').path
+        path = base + product.path
         response = flask.make_response('')
         response.headers['Content-Type'] = ''
         response.headers['X-Accel-Redirect'] = path
         return response
     else:
-        return flask.send_file(str(appdb.root / f.get_product('MAIN').path))
+        return flask.send_file(str(appdb.root / product.path))
 
 @app.route('/map/<int:id>.svg')
 @cache.cached(timeout=VERY_LONG_TIME)
-def map_raw(id):
+def map(id):
     proj = goesbrowse.database.Projection.query.get_or_404(id)
 
     geo = get_geojson()

@@ -1,27 +1,5 @@
 {% extends "base.html" %}
-
-<!-- http://flask.pocoo.org/snippets/44/ -->
-{% macro render_pagination(pagination) %}
-  <nav class="pagination is-small is-rounded" role="navigation" aria-label="pagination">
-    {% if pagination.has_prev %}
-      <a class="pagination-previous" href="{{ url_for_args(page=pagination.prev_num) }}">Previous</a>
-    {% endif %}
-    {% if pagination.has_next %}
-      <a class="pagination-next" href="{{ url_for_args(page=pagination.next_num) }}">Next Page</a>
-    {% endif %}
-    <ul class="pagination-list">
-      {% for page in pagination.iter_pages() %}
-        <li>
-          {% if page %}
-            <a class="pagination-link{% if pagination.page == page %} is-current{% endif %}" aria-label="Goto page {{ page }}" {% if pagination.page == page %}aria-current="page" {% endif %}href="{{ url_for_args(page=page) }}">{{ page }}</a>
-          {% else %}
-            <span class="pagination-ellipsis">&hellip;</span>
-          {% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-  </nav>
-{% endmacro %}
+{% import 'widgets.html' as widgets %}
 
 {% block content %}
   <div class="container">
@@ -74,7 +52,7 @@
 
   <br>
 
-  {{ render_pagination(pagination) }}
+  {{ widgets.render_pagination(pagination) }}
   
   <table class="table is-striped is-narrow is-fullwidth is-hoverable">
     <tr>
@@ -105,11 +83,17 @@
         <td>{{ file.source }}</td>
         <td>{% if file.region %}{{ file.region }}{% endif %}</td>
         <td>{% if file.channel %}{{ file.channel }}{% endif %}</td>
-        <td><a href="{{ url_for('meta', id=file.id, slug=file.slug) }}">[M]</a></td>
-        <td><a href="{{ url_for('data', id=file.id, slug=file.slug) }}">{{ file.name }}.{{ file.type }}</a></td>
+        <td>
+          {% for prod in file.products|sort(attribute='type') %}
+            {% if prod.type != ProductType.MAIN %}
+              <a href="{{ url_for_product(prod) }}">[{{ prod.type.name.upper()[0] }}]</a>
+            {% endif %}
+          {% endfor %}
+        </td>
+        <td><a href="{{ url_for_product(file.get_product(ProductType.MAIN)) }}">{{ file.name }}.{{ file.type }}</a></td>
       </tr>
     {% endfor %}
   </table>
   
-  {{ render_pagination(pagination) }}
+  {{ widgets.render_pagination(pagination) }}
 {% endblock %}

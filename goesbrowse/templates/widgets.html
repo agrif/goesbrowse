@@ -1,0 +1,22 @@
+{% macro render_pagination(pagination) %}
+  <nav class="pagination is-small is-rounded" role="navigation" aria-label="pagination">
+    {% if pagination.has_prev %}
+      <a class="pagination-previous" href="{{ url_for_args(page=pagination.prev_num) }}">Previous</a>
+    {% endif %}
+    {% if pagination.has_next %}
+      <a class="pagination-next" href="{{ url_for_args(page=pagination.next_num) }}">Next Page</a>
+    {% endif %}
+    <ul class="pagination-list">
+      {% for page in pagination.iter_pages() %}
+        <li>
+          {% if page %}
+            <a class="pagination-link{% if pagination.page == page %} is-current{% endif %}" aria-label="Goto page {{ page }}" {% if pagination.page == page %}aria-current="page" {% endif %}href="{{ url_for_args(page=page) }}">{{ page }}</a>
+          {% else %}
+            <span class="pagination-ellipsis">&hellip;</span>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </nav>
+{% endmacro %}
+

@@ -33,10 +33,6 @@ class File(sql.Model):
     )
 
     @property
-    def slug(self):
-        return self.date.strftime('%Y-%m-%d/%H.%M.%S/') + self.name
-
-    @property
     def localdate(self):
         return self.date.replace(tzinfo=datetime.timezone.utc).astimezone(dateutil.tz.tzlocal())
 
@@ -46,12 +42,16 @@ class File(sql.Model):
                 return prod
         return None
 
-ProductType = enum.Enum('ProductType', [
-    'MAIN',
-    'META',
-    'THUMBNAIL',
-    'TIMELAPSE',
-])
+class ProductType(enum.IntEnum):
+    MAIN = 1
+    META = 2
+    THUMBNAIL = 3
+    TIMELAPSE = 4
+
+    # whether to hide this in the UI
+    @property
+    def hidden(self):
+        return self == ProductType.THUMBNAIL
 
 class Product(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
@@ -60,6 +60,10 @@ class Product(sql.Model):
     type = sql.Column(sql.Enum(ProductType), index=True)
 
     file_id = sql.Column(sql.Integer, sql.ForeignKey('file.id'))
+
+    @property
+    def ext(self):
+        return pathlib.Path(self.path).suffix.lstrip('.').lower()
 
 class Projection(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
