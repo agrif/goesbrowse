@@ -295,14 +295,14 @@ class Database:
         sql.session.add(newfile)
 
         main = Product(
-            path = str(datapath),
+            path = str(datapathrel),
             size = datasize,
             type = ProductType.MAIN,
             file = newfile,
         )
 
         meta = Product(
-            path = str(jsonpath),
+            path = str(jsonpathrel),
             size = jsonsize,
             type = ProductType.META,
             file = newfile,
