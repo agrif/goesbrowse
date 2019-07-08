@@ -1,5 +1,7 @@
+# use this other file as a base
 inherit = [
     "goesbrowse.toml"
 ]
 
+# use X-Accel-Redirect to serve goesproc files, using this path
 use_x_accel_redirect = "/x-dbroot/"

@@ -1,3 +1,13 @@
+# what database to use, in sqlalchemy format
 database = "sqlite:////home/pi/received/database.db"
+
+# where goesproc puts files
 files = "/home/pi/received/"
+
+# how big should this directory get before we prune files?
+# comment out to turn off pruning
 quota = "16GiB"
+
+# how big should generated preview images be?
+# comment out to disable preview images
+thumbnail = 1024

@@ -12,6 +12,7 @@ class Config:
     files = attr.ib(default=None)
     quota = attr.ib(default=0)
     use_x_accel_redirect = attr.ib(default=None)
+    thumbnail = attr.ib(default=None)
 
     def set_if_present(self, data, k, trans=lambda x: x):
         if k in data:
@@ -24,6 +25,8 @@ class Config:
         self.set_if_present(data, 'quota')
         if not isinstance(self.quota, int):
             self.quota = humanfriendly.parse_size(self.quota)
+
+        self.set_if_present(data, 'thumbnail', int)
 
         self.set_if_present(data, 'use_x_accel_redirect')
 

@@ -8,6 +8,7 @@ import re
 import dateutil.tz
 import flask_migrate
 import flask_sqlalchemy
+import PIL.Image
 import sqlalchemy.sql
 
 import goesbrowse.projection
@@ -51,7 +52,7 @@ class ProductType(enum.IntEnum):
     # whether to hide this in the UI
     @property
     def hidden(self):
-        return self == ProductType.THUMBNAIL
+        return False
 
 class Product(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
@@ -166,9 +167,10 @@ class Projection(sql.Model):
         return cls.from_nav(width, height, nav)
 
 class Database:
-    def __init__(self, root, quota):
+    def __init__(self, root, quota, thumbnail):
         self.quota = quota
         self.root = pathlib.Path(root).resolve()
+        self.thumbnail = thumbnail
 
     def get_size(self, query=None):
         if query is None:
@@ -240,9 +242,11 @@ class Database:
         
         datapath = (self.root / pathlib.Path(data['Path'])).resolve()
         datapathrel = datapath.relative_to(self.root)
+        print('updating', datapathrel)
+
         datasize = datapath.stat().st_size
         jsonsize = jsonpath.stat().st_size
-        suffix = datapathrel.suffix.lstrip('.')
+        suffix = datapathrel.suffix.lstrip('.').lower()
 
         # attempt some heuristics to split filename
         filedateformat = '%Y%m%dT%H%M%SZ'
@@ -277,9 +281,16 @@ class Database:
         # give our date a timezone
         date = date.replace(tzinfo=datetime.timezone.utc)
 
-        proj = Projection.from_meta(data)
-        if proj:
-            proj = proj.find_or_insert()
+        proj = None
+        im = None
+        if suffix == 'jpg':
+            im = PIL.Image.open(datapath)
+            try:
+                proj = Projection.from_nav(im.size[0], im.size[1], data['ImageNavigation'])
+                if proj:
+                    proj = proj.find_or_insert()
+            except KeyError:
+                proj = None
 
         newfile = File(
             meta = data,
@@ -311,3 +322,17 @@ class Database:
         sql.session.add(main)
         sql.session.add(meta)
 
+        if self.thumbnail and im is not None:
+            thumbpath = datapath.with_suffix('.thumbnail.' + suffix)
+            thumbpathrel = thumbpath.relative_to(self.root)
+            print('generating', thumbpathrel)
+            im.thumbnail((self.thumbnail, self.thumbnail))
+            im.save(str(thumbpath))
+
+            thumb = Product(
+                path = str(thumbpathrel),
+                size = thumbpath.stat().st_size,
+                type = ProductType.THUMBNAIL,
+                file = newfile,
+            )
+            sql.session.add(thumb)

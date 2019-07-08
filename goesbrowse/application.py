@@ -49,6 +49,7 @@ def get_db():
         db = flask.g._goesbrowse_database = goesbrowse.database.Database(
             conf.files,
             conf.quota,
+            conf.thumbnail,
         )
     return db
 
