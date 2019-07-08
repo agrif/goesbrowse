@@ -182,13 +182,32 @@ def map(id):
     d = svgwrite.Drawing(size=(proj.width, proj.height))
     d.viewbox(0, 0, proj.width, proj.height)
 
+    def simplify(pts):
+        #yield from (p for p in pts if p)
+        #return
+        lastx = None
+        lasty = None
+        for pt in pts:
+            if not pt:
+                continue
+            x = round(pt[0], 1)
+            y = round(pt[1], 1)
+            if lastx is None:
+                lastx = x
+                lasty = y
+                yield (x, y)
+            else:
+                if (x - lastx) ** 2 + (y - lasty) ** 2 >= 1.0:
+                    lastx = x
+                    lasty = y
+                    yield(x, y)
+
     def draw_polygon(lines, poly):
-        pts = (proj.forward(*pt) for pt in poly)
-        pts = [pt for pt in pts if pt]
-        if not any([p[0] >= 0 and p[0] < proj.width and p[1] >= 0 and p[1] < proj.height for p in pts]):
+        pts = (proj.forward(*p) for p in poly)
+        if not any(p[0] >= 0 and p[0] < proj.width and p[1] >= 0 and p[1] < proj.height for p in pts if p):
             return
         if pts:
-            lines.add(d.polygon(pts))
+            lines.add(d.polygon(simplify(pts)))
 
     def draw_geometry(lines, geom):
         if isinstance(geom, geojson.Polygon):
