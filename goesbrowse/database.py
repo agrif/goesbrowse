@@ -222,7 +222,10 @@ class Database:
             for prod in file.products:
                 print('deleting', prod.path)
                 if not dry_run:
-                    (self.root / prod.path).unlink()
+                    try:
+                        (self.root / prod.path).unlink()
+                    except FileNotFoundError:
+                        pass
                     sql.session.delete(prod)
             if not dry_run:
                 sql.session.delete(file)
