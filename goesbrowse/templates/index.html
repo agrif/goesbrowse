@@ -10,7 +10,7 @@
 
   <div class="field is-grouped is-grouped-multiline">
     {% for name, values in filtervalues.items() %}
-      {% if request.args.get(name) != values[0] %}
+      {% if filters.get(name) != values[0] %}
         <div class="select is-small">
           <select name="{{ name }}" onchange="location = this.value;">
             <option value="{{ url_for_filters() }}">filter on {{ name }}...</option>
