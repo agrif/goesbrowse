@@ -12,6 +12,7 @@ import pygments.lexers
 import pygments.formatters
 import sqlalchemy.sql
 import svgwrite
+import werkzeug.routing
 
 import goesbrowse.config
 import goesbrowse.database
@@ -83,23 +84,64 @@ def url_for_args(**kwargs):
     return flask.url_for(flask.request.endpoint, **args)
 app.jinja_env.globals['url_for_args'] = url_for_args
 
+# helper to create a url with a new filter added
+def url_for_filters(**kwargs):
+    args = flask.request.view_args.copy()
+    args['filters'] = args.get('filters', {}).copy()
+    for k, v in kwargs.items():
+        if v is None:
+            if k in args['filters']:
+                del args['filters'][k]
+        else:
+            args['filters'][k] = v
+    return flask.url_for(flask.request.endpoint, **args)
+app.jinja_env.globals['url_for_filters'] = url_for_filters
+
+# turn a url part into a file, directly
+class FileConverter(werkzeug.routing.BaseConverter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.regex = "\d+/" + "/".join(["[^/]+"] * 3)
+
+    def to_python(self, value):
+        i = int(value.split('/', 2)[0])
+        # FIXME use newer flask to be able to fetch object here
+        return i
+
+    def to_url(self, value):
+        date = value.date.strftime('%Y-%m-%d')
+        time = value.date.strftime('%H.%M.%S')
+        return "{}/{}/{}/{}".format(value.id, date, time, value.name)
+app.url_map.converters['file'] = FileConverter
+
 # helper to make a url to a product, raw or not
 def url_for_product(product, raw=False):
-    date = product.file.date.strftime('%Y-%m-%d')
-    time = product.file.date.strftime('%H.%M.%S')
     if raw:
-        return flask.url_for('product_raw', id=product.file.id, date=date, time=time, name=product.file.name, type=product.type.name.lower(), ext=product.ext)
+        return flask.url_for('product_raw', f=product.file, type=product.type.name.lower(), ext=product.ext)
     else:
-        return flask.url_for('product', id=product.file.id, date=date, time=time, name=product.file.name, type=product.type.name.lower())
+        return flask.url_for('product', f=product.file, type=product.type.name.lower())
 app.jinja_env.globals['url_for_product'] = url_for_product
 
-@app.route('/')
-def index():
+# turn a url part into substitute query parameters
+class FilterConverter(werkzeug.routing.BaseConverter):
+    regex = '[^/:]+:[^/]+(?:/[^/:]+:[^/]+)*'
+
+    def to_python(self, value):
+        parts = (part.split(':', 2) for part in value.split('/'))
+        return dict(parts)
+
+    def to_url(self, value):
+        url = '/'.join(str(k) + ':' + str(v) for k, v in sorted(value.items()))
+        return werkzeug.routing._fast_url_quote(url.encode(self.map.charset))
+app.url_map.converters['filter'] = FilterConverter
+
+@app.route('/', defaults={'filters': {}})
+@app.route('/<filter:filters>')
+def index(filters):
     filternames = ['type', 'source', 'region', 'channel']
-    filters = {}
-    for k in filternames:
-        if k in flask.request.args:
-            filters[k] = flask.request.args[k]
+    for k in filters:
+        if not k in filternames:
+            abort(404)
 
     query = goesbrowse.database.File.query
     query = query.filter_by(**filters)
@@ -126,7 +168,7 @@ def index():
     query = query.order_by(goesbrowse.database.File.date.desc())
     pagination = query.paginate(page, per_page)
 
-    return flask.render_template('index.html', files=pagination.items, size=size, filtervalues=filtervalues, pagination=pagination)
+    return flask.render_template('index.html', files=pagination.items, size=size, filtervalues=filtervalues, filters=filters, pagination=pagination)
 
 @app.route('/highlight.css')
 @cache.cached(timeout=VERY_LONG_TIME)
@@ -136,10 +178,10 @@ def highlight_css():
     response.cache_control.max_age = VERY_LONG_TIME
     return response
 
-@app.route('/<int:id>/<date>/<time>/<name>/', defaults={'type': 'main'})
-@app.route('/<int:id>/<date>/<time>/<name>/<type>/')
-def product(id, date, time, name, type):
-    f = goesbrowse.database.File.query.get_or_404(id)
+@app.route('/<file:f>/', defaults={'type': 'main'})
+@app.route('/<file:f>/<type>/')
+def product(f, type):
+    f = goesbrowse.database.File.query.get(f)
     product = f.get_product(type.upper())
     if not product:
         flask.abort(404)
@@ -153,10 +195,10 @@ def product(id, date, time, name, type):
         content = json.dumps(f.meta, indent=2)
     return flask.render_template('product.html', file=f, product=product, content=content)
 
-@app.route('/<int:id>/<date>/<time>/<name>.<ext>', defaults={'type': 'main'})
-@app.route('/<int:id>/<date>/<time>/<name>.<type>.<ext>')
-def product_raw(id, date, time, name, type, ext):
-    f = goesbrowse.database.File.query.get_or_404(id)
+@app.route('/<file:f>.<ext>', defaults={'type': 'main'})
+@app.route('/<file:f>.<type>.<ext>')
+def product_raw(f, type, ext):
+    f = goesbrowse.database.File.query.get(f)
     product = f.get_product(type.upper())
     if not product:
         flask.abort(404)

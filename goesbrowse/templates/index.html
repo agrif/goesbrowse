@@ -13,9 +13,9 @@
       {% if request.args.get(name) != values[0] %}
         <div class="select is-small">
           <select name="{{ name }}" onchange="location = this.value;">
-            <option value="{{ url_for_args() }}">filter on {{ name }}...</option>
+            <option value="{{ url_for_filters() }}">filter on {{ name }}...</option>
             {% for value in values %}
-              <option value="{{ url_for_args(**{name: value}) }}">{{ value }}</option>
+              <option value="{{ url_for_filters(**{name: value}) }}">{{ value }}</option>
             {% endfor %}
           </select>
         </div>
@@ -28,13 +28,13 @@
   <div class="field is-grouped is-grouped-multiline">
     {% set deactivate = {} %}
     {% for name, values in filtervalues.items() %}
-      {% if request.args.get(name) == values[0] %}
+      {% if filters.get(name) == values[0] %}
         <div class="control">
           <div class="tags has-addons">
             <span class="tag">{{ name }}</span>
             <span class="tag is-info">
               {{ values[0] }}
-              <a class="delete is-small" href="{{ url_for_args(**{name: None}) }}"></a>
+              <a class="delete is-small" href="{{ url_for_filters(**{name: None}) }}"></a>
             </span>
           </div>
         </div>
@@ -43,7 +43,7 @@
     {% endfor %}
     {% if deactivate %}
       <div class="control">
-        <a class="button is-danger is-outlined is-small" href="{{ url_for_args(page=None, **deactivate) }}">clear all filters</a>
+        <a class="button is-danger is-outlined is-small" href="{{ url_for_filters(**deactivate) }}">clear all filters</a>
       </div>
       <br>
     {% else %}
