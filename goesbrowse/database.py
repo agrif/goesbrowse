@@ -133,7 +133,7 @@ class Projection(sql.Model):
         except KeyError:
             return None
 
-        m = re.match('^geos\\(([-+0-9]+\\.?[0-9]*)\\)$', proj_name)
+        m = re.match('^geos\\(([-+0-9]+\\.?[0-9]*)\\)$', proj_name, re.IGNORECASE)
         if not m:
             return None
         lon_0 = float(m.group(1))
