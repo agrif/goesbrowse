@@ -249,7 +249,9 @@ def map(id):
         if not any(p[0] >= 0 and p[0] < proj.width and p[1] >= 0 and p[1] < proj.height for p in pts if p):
             return
         if pts:
-            lines.add(d.polygon(simplify(pts)))
+            pts = list(simplify(pts))
+            if pts:
+                lines.add(d.polygon(simplify(pts)))
 
     def draw_geometry(lines, geom):
         if isinstance(geom, geojson.Polygon):
