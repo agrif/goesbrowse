@@ -256,19 +256,31 @@ class Database:
         try:
             name, date = jsonpath.stem.rsplit('_', 1)
             date = datetime.datetime.strptime(date, filedateformat)
-            namefirst = True
+            meta_from_name = True
+            swap_region_channel = False
         except ValueError:
-            date, name = jsonpath.stem.split('_', 1)
-            date = datetime.datetime.strptime(date, filedateformat)
-            namefirst = False
+            try:
+                # why on earth
+                name, date, region = jsonpath.stem.rsplit('_', 2)
+                date = datetime.datetime.strptime(date, filedateformat)
+                name += '_' + region
+                meta_from_name = True
+                swap_region_channel = True
+            except ValueError:
+                date, name = jsonpath.stem.split('_', 1)
+                date = datetime.datetime.strptime(date, filedateformat)
+                meta_from_name = False
+                swap_region_channel = False
 
         # extract some metadata from the name, if possible
         source = None
         region = None
         channel = None
-        if namefirst:
+        if meta_from_name:
             try:
                 source, region, channel = name.split('_', 2)
+                if swap_region_channel:
+                    region, channel = channel, region
             except ValueError:
                 pass
         else:
