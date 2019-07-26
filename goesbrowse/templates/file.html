@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block head %}
-  {% if file.projection and product.ext == 'jpg' %}
+  {% if product.projection and file.ext == 'jpg' %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='vendor/bulmaswatch.min.css') }}">
     <script src="{{ url_for('static', filename='map.js') }}"></script>
     <script>
@@ -11,18 +11,18 @@
     </script>
   {% endif %}
   
-  {% if product.ext == 'json' %}
+  {% if file.ext == 'json' %}
     <link rel="stylesheet" type="text/css" href="{{ url_for('highlight_css') }}">
   {% endif %}
 {% endblock %}
 
 {% block content %}
-  <h2 class="subtitle">{{ file.name }}.{{ file.type }}</h2>
+  <h2 class="subtitle">{{ product.name }}.{{ product.type }}</h2>
 
   <div class="tabs">
     <ul>      
-      {% for prod in file.products|sort(attribute='type') %}
-        <li{% if prod.id == product.id %} class="is-active"{% endif %}><a href="{{ url_for_product(prod) }}">{{ prod.type.name|capitalize }}</a></li>
+      {% for prod in product.files|sort(attribute='type') %}
+        <li{% if prod.id == file.id %} class="is-active"{% endif %}><a href="{{ url_for_file(prod) }}">{{ prod.type.name|capitalize }}</a></li>
       {% endfor %}
     </ul>
   </div>
@@ -30,25 +30,25 @@
   <nav class="level">
     <div class="level-left">
       <div class="level-item">
-        Size: {{ product.size|humanize('naturalsize') }}
+        Size: {{ file.size|humanize('naturalsize') }}
       </div>
     </div>
     <div class="level-right">
       <div class="level-item">
-        <a class="button is-link is-outlined is-small" href="{{ url_for_product(product, raw=True) }}">Raw</a>
+        <a class="button is-link is-outlined is-small" href="{{ url_for_file(file, raw=True) }}">Raw</a>
       </div>
     </div>
   </nav>
 
-  {% if product.ext == 'txt' %}
+  {% if file.ext == 'txt' %}
     <pre>{{ content }}</pre>
-  {% elif product.ext == 'json' %}
+  {% elif file.ext == 'json' %}
     {% highlight 'json' %}{{ content }}{% endhighlight %}
   {% else %}
-    <a href="{{ url_for_product(product, raw=True) }}">
-      <img id="baseImage" class="centerpiece" src="{{ url_for_product(product, raw=True) }}">
-      {% if file.projection %}
-        <img id="mapImage" src="{{ url_for('map', id=file.projection_id) }}">
+    <a href="{{ url_for_file(file, raw=True) }}">
+      <img id="baseImage" class="centerpiece" src="{{ url_for_file(file, raw=True) }}">
+      {% if product.projection %}
+        <img id="mapImage" src="{{ url_for('map', id=product.projection_id) }}">
       {% endif %}
     </a>
   {% endif %}

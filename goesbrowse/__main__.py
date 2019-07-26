@@ -30,22 +30,22 @@ def timelapse():
     postroll = 5
     rate = 1 / (8 * 60 * 60)
 
-    files = goesbrowse.database.File.query.filter_by(region='FD', source='GOES16', channel='FC').order_by(goesbrowse.database.File.date)
+    prods = goesbrowse.database.Product.query.filter_by(region='FD', source='GOES16', channel='FC').order_by(goesbrowse.database.Product.date)
     lastdate = None
     print('ffconcat version 1.0')
-    for f in files:
+    for p in prods:
         if conf.thumbnail:
-            prod = f.get_product('THUMBNAIL')
+            f = p.get_file('THUMBNAIL')
         else:
-            prod = f.get_product('MAIN')
-        if not prod:
+            f = p.get_file('MAIN')
+        if not f:
             continue
         if lastdate is not None:
-            duration = f.localdate - lastdate
+            duration = p.localdate - lastdate
             print('duration {}'.format(duration.total_seconds() * rate))
-        print('file {}'.format(prod.path))
-        print('file_packet_metadata imagedate=\'{:%a %b %d %Y, %H:%M:%S %Z}\''.format(f.localdate))
-        lastdate = f.localdate
+        print('file {}'.format(f.path))
+        print('file_packet_metadata imagedate=\'{:%a %b %d %Y, %H:%M:%S %Z}\''.format(p.localdate))
+        lastdate = p.localdate
     print('duration {}'.format(postroll))
 
 if __name__ == '__main__':

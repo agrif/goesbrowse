@@ -16,7 +16,7 @@ import goesbrowse.projection
 sql = flask_sqlalchemy.SQLAlchemy()
 migrate = flask_migrate.Migrate()
 
-class File(sql.Model):
+class Product(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
     meta = sql.Column(sql.JSON)
     date = sql.Column(sql.DateTime, index=True)
@@ -27,9 +27,9 @@ class File(sql.Model):
     channel = sql.Column(sql.Text, index=True)
 
     projection_id = sql.Column(sql.Integer, sql.ForeignKey('projection.id'))
-    products = sql.relationship(
-        'Product',
-        backref=sql.backref('file', lazy=False),
+    files = sql.relationship(
+        'File',
+        backref=sql.backref('product', lazy=False),
         lazy=False,
     )
 
@@ -37,13 +37,13 @@ class File(sql.Model):
     def localdate(self):
         return self.date.replace(tzinfo=datetime.timezone.utc).astimezone(dateutil.tz.tzlocal())
 
-    def get_product(self, type):
-        for prod in self.products:
-            if prod.type == type or prod.type.name == type:
-                return prod
+    def get_file(self, type):
+        for f in self.files:
+            if f.type == type or f.type.name == type:
+                return f
         return None
 
-class ProductType(enum.IntEnum):
+class FileType(enum.IntEnum):
     MAIN = 1
     META = 2
     THUMBNAIL = 3
@@ -54,13 +54,13 @@ class ProductType(enum.IntEnum):
     def hidden(self):
         return False
 
-class Product(sql.Model):
+class File(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
     path = sql.Column(sql.Text, index=True, unique=True)
     size = sql.Column(sql.Integer, index=True)
-    type = sql.Column(sql.Enum(ProductType), index=True)
+    type = sql.Column(sql.Enum(FileType), index=True)
 
-    file_id = sql.Column(sql.Integer, sql.ForeignKey('file.id'))
+    product_id = sql.Column(sql.Integer, sql.ForeignKey('product.id'))
 
     @property
     def ext(self):
@@ -79,8 +79,8 @@ class Projection(sql.Model):
     y_scale = sql.Column(sql.Integer)
     lon_0 = sql.Column(sql.Float)
 
-    files = sql.relationship(
-        'File',
+    products = sql.relationship(
+        'Product',
         backref=sql.backref('projection', lazy=True),
         lazy=True,
     )
@@ -175,8 +175,8 @@ class Database:
     def get_size(self, query=None):
         if query is None:
             query = File.query
-        query = query.join(Product.file)
-        s = query.with_entities(sqlalchemy.sql.func.sum(Product.size)).first()
+        query = query.join(File.product)
+        s = query.with_entities(sqlalchemy.sql.func.sum(File.size)).first()
         if not s:
             return 0
         return s[0]
@@ -194,10 +194,10 @@ class Database:
             return
 
         # fixme: https://gist.github.com/Gizmokid2005/2bb9cc3746f4f0ea0dbfb83e7d64a8da
-        for file in File.query.order_by(File.date).all():
-            for prod in file.products:
-                excess -= prod.size
-            yield file
+        for prod in Product.query.order_by(Product.date).all():
+            for file in prod.files:
+                excess -= file.size
+            yield prod
             if excess <= 0:
                 break
 
@@ -218,24 +218,24 @@ class Database:
         sql.session.commit()
 
     def clean(self, dry_run=False):
-        for file in list(self.get_above_quota()):
-            for prod in file.products:
-                print('deleting', prod.path)
+        for prod in list(self.get_above_quota()):
+            for file in prod.files:
+                print('deleting', file.path)
                 if not dry_run:
                     try:
-                        (self.root / prod.path).unlink()
+                        (self.root / file.path).unlink()
                     except FileNotFoundError:
                         pass
-                    sql.session.delete(prod)
+                    sql.session.delete(file)
             if not dry_run:
-                sql.session.delete(file)
+                sql.session.delete(prod)
         if not dry_run:
             sql.session.commit()
         self.remove_empty_dirs(self.root, dry_run=dry_run)
 
     def update_file(self, jsonpath):
         jsonpathrel = jsonpath.relative_to(self.root)
-        if Product.query.filter_by(path=str(jsonpathrel)).first():
+        if File.query.filter_by(path=str(jsonpathrel)).first():
             # already exists, skip it
             return
         print('updating', jsonpathrel)
@@ -307,7 +307,7 @@ class Database:
             except KeyError:
                 proj = None
 
-        newfile = File(
+        newprod = Product(
             meta = data,
             date = date,
             type = suffix,
@@ -318,20 +318,20 @@ class Database:
             projection = proj,
         )
 
-        sql.session.add(newfile)
+        sql.session.add(newprod)
 
-        main = Product(
+        main = File(
             path = str(datapathrel),
             size = datasize,
-            type = ProductType.MAIN,
-            file = newfile,
+            type = FileType.MAIN,
+            product = newprod,
         )
 
-        meta = Product(
+        meta = File(
             path = str(jsonpathrel),
             size = jsonsize,
-            type = ProductType.META,
-            file = newfile,
+            type = FileType.META,
+            product = newprod,
         )
 
         sql.session.add(main)
@@ -344,10 +344,10 @@ class Database:
             im.thumbnail((self.thumbnail, self.thumbnail))
             im.save(str(thumbpath))
 
-            thumb = Product(
+            thumb = File(
                 path = str(thumbpathrel),
                 size = thumbpath.stat().st_size,
-                type = ProductType.THUMBNAIL,
-                file = newfile,
+                type = FileType.THUMBNAIL,
+                product = newprod,
             )
             sql.session.add(thumb)

@@ -23,7 +23,7 @@ app.config['CACHE_TYPE'] = 'simple'
 humanize = flask_humanize.Humanize(app)
 cache = flask_caching.Cache(app)
 VERY_LONG_TIME = 60 * 60 * 24
-app.jinja_env.globals['ProductType'] = goesbrowse.database.ProductType
+app.jinja_env.globals['FileType'] = goesbrowse.database.FileType
 app.jinja_env.add_extension('jinja2_highlight.HighlightExtension')
 app.jinja_env.extend(jinja2_highlight_cssclass = 'highlight')
 
@@ -97,8 +97,8 @@ def url_for_filters(**kwargs):
     return flask.url_for(flask.request.endpoint, **args)
 app.jinja_env.globals['url_for_filters'] = url_for_filters
 
-# turn a url part into a file, directly
-class FileConverter(werkzeug.routing.BaseConverter):
+# turn a url part into a product, directly
+class ProductConverter(werkzeug.routing.BaseConverter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.regex = "\d+/" + "/".join(["[^/]+"] * 3)
@@ -112,15 +112,15 @@ class FileConverter(werkzeug.routing.BaseConverter):
         date = value.date.strftime('%Y-%m-%d')
         time = value.date.strftime('%H.%M.%S')
         return "{}/{}/{}/{}".format(value.id, date, time, value.name)
-app.url_map.converters['file'] = FileConverter
+app.url_map.converters['product'] = ProductConverter
 
 # helper to make a url to a product, raw or not
-def url_for_product(product, raw=False):
+def url_for_file(file, raw=False):
     if raw:
-        return flask.url_for('product_raw', f=product.file, type=product.type.name.lower(), ext=product.ext)
+        return flask.url_for('file_view_raw', p=file.product, type=file.type.name.lower(), ext=file.ext)
     else:
-        return flask.url_for('product', f=product.file, type=product.type.name.lower())
-app.jinja_env.globals['url_for_product'] = url_for_product
+        return flask.url_for('file_view', p=file.product, type=file.type.name.lower())
+app.jinja_env.globals['url_for_file'] = url_for_file
 
 # turn a url part into substitute query parameters
 class FilterConverter(werkzeug.routing.BaseConverter):
@@ -143,17 +143,17 @@ def index(filters):
         if not k in filternames:
             abort(404)
 
-    query = goesbrowse.database.File.query
+    query = goesbrowse.database.Product.query
     query = query.filter_by(**filters)
 
     filtervalues = collections.OrderedDict()
     for k in filternames:
-        values = query.with_entities(getattr(goesbrowse.database.File, k)).distinct()
+        values = query.with_entities(getattr(goesbrowse.database.Product, k)).distinct()
         if values:
             filtervalues[k] = [v[0] for v in values if v[0]]
             filtervalues[k].sort()
 
-    size = query.join(goesbrowse.database.Product).with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.Product.size)).first()
+    size = query.join(goesbrowse.database.File).with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.File.size)).first()
     if size is None:
         size = 0
     else:
@@ -165,10 +165,10 @@ def index(filters):
     except (ValueError, KeyError):
         page = 1
 
-    query = query.order_by(goesbrowse.database.File.date.desc())
+    query = query.order_by(goesbrowse.database.Product.date.desc())
     pagination = query.paginate(page, per_page)
 
-    return flask.render_template('index.html', files=pagination.items, size=size, filtervalues=filtervalues, filters=filters, pagination=pagination)
+    return flask.render_template('index.html', products=pagination.items, size=size, filtervalues=filtervalues, filters=filters, pagination=pagination)
 
 @app.route('/highlight.css')
 @cache.cached(timeout=VERY_LONG_TIME)
@@ -178,42 +178,42 @@ def highlight_css():
     response.cache_control.max_age = VERY_LONG_TIME
     return response
 
-@app.route('/<file:f>/', defaults={'type': 'main'})
-@app.route('/<file:f>/<type>/')
-def product(f, type):
-    f = goesbrowse.database.File.query.get(f)
-    product = f.get_product(type.upper())
-    if not product:
+@app.route('/<product:p>/', defaults={'type': 'main'})
+@app.route('/<product:p>/<type>/')
+def file_view(p, type):
+    p = goesbrowse.database.Product.query.get(p)
+    file = p.get_file(type.upper())
+    if not file:
         flask.abort(404)
 
     content = None
-    if product.ext == 'txt':
+    if file.ext == 'txt':
         appdb = get_db()
-        with open(str(appdb.root / product.path), 'r') as dataf:
+        with open(str(appdb.root / file.path), 'r') as dataf:
             content = dataf.read()
-    if product.ext == 'json':
-        content = json.dumps(f.meta, indent=2)
-    return flask.render_template('product.html', file=f, product=product, content=content)
+    if file.ext == 'json':
+        content = json.dumps(p.meta, indent=2)
+    return flask.render_template('file.html', product=p, file=file, content=content)
 
-@app.route('/<file:f>.<ext>', defaults={'type': 'main'})
-@app.route('/<file:f>.<type>.<ext>')
-def product_raw(f, type, ext):
-    f = goesbrowse.database.File.query.get(f)
-    product = f.get_product(type.upper())
-    if not product:
+@app.route('/<product:p>.<ext>', defaults={'type': 'main'})
+@app.route('/<product:p>.<type>.<ext>')
+def file_view_raw(p, type, ext):
+    p = goesbrowse.database.Product.query.get(p)
+    file = p.get_file(type.upper())
+    if not file:
         flask.abort(404)
 
     appdb = get_db()
     conf = get_config()
     if conf.use_x_accel_redirect:
         base = conf.use_x_accel_redirect
-        path = base + product.path
+        path = base + file.path
         response = flask.make_response('')
         response.headers['Content-Type'] = ''
         response.headers['X-Accel-Redirect'] = path
         return response
     else:
-        return flask.send_file(str(appdb.root / product.path))
+        return flask.send_file(str(appdb.root / file.path))
 
 @app.route('/map/<int:id>.svg')
 @cache.cached(timeout=VERY_LONG_TIME)

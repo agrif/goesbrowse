@@ -3,7 +3,7 @@
 
 {% block content %}
   <div class="container">
-    Showing {{ ((pagination.page - 1) * pagination.per_page + 1)|humanize('intcomma') }} - {{ [pagination.page * pagination.per_page, pagination.total]|min|humanize('intcomma') }} of {{ pagination.total|humanize('intcomma') }} files, total size: {{ size|humanize('naturalsize') }}
+    Showing {{ ((pagination.page - 1) * pagination.per_page + 1)|humanize('intcomma') }} - {{ [pagination.page * pagination.per_page, pagination.total]|min|humanize('intcomma') }} of {{ pagination.total|humanize('intcomma') }} products, total size: {{ size|humanize('naturalsize') }}
   </div>
 
   <br>
@@ -68,12 +68,12 @@
       <th><!-- extras --></th>
       <th>URL</th>
     </tr>
-    {% for file in files %}
+    {% for product in products %}
       <tr>
-        <td class="has-text-right">{{ file.localdate.strftime('%a %b %d, %Y') }}</td>
-        <td>{{ file.localdate.strftime('%I:%M:%S %p %Z') }}</td>
-        <td>{{ file.localdate.replace(tzinfo=None)|humanize() }}</td>
-        {% set nicesize = file.get_product('MAIN').size|humanize('naturalsize') %}
+        <td class="has-text-right">{{ product.localdate.strftime('%a %b %d, %Y') }}</td>
+        <td>{{ product.localdate.strftime('%I:%M:%S %p %Z') }}</td>
+        <td>{{ product.localdate.replace(tzinfo=None)|humanize() }}</td>
+        {% set nicesize = product.get_file('MAIN').size|humanize('naturalsize') %}
         {% set nicesizeparts = nicesize.split() %}
         <td class="has-text-right">{{ nicesizeparts[0] }}</td>
         {% if nicesizeparts[1].lower().startswith('byte') %}
@@ -81,18 +81,18 @@
         {% else %}
           <td>{{ nicesizeparts[1] }}</td>
         {% endif %}
-        <td>{{ file.type }}</td>
-        <td>{{ file.source }}</td>
-        <td>{% if file.region %}{{ file.region }}{% endif %}</td>
-        <td>{% if file.channel %}{{ file.channel }}{% endif %}</td>
+        <td>{{ product.type }}</td>
+        <td>{{ product.source }}</td>
+        <td>{% if product.region %}{{ product.region }}{% endif %}</td>
+        <td>{% if product.channel %}{{ product.channel }}{% endif %}</td>
         <td>
-          {% for prod in file.products|sort(attribute='type') %}
-            {% if prod.type != ProductType.MAIN %}
-              <a href="{{ url_for_product(prod) }}">[{{ prod.type.name.upper()[0] }}]</a>
+          {% for file in product.files|sort(attribute='type') %}
+            {% if file.type != FileType.MAIN %}
+              <a href="{{ url_for_file(file) }}">[{{ file.type.name.upper()[0] }}]</a>
             {% endif %}
           {% endfor %}
         </td>
-        <td><a href="{{ url_for_product(file.get_product(ProductType.MAIN)) }}">{{ file.name }}.{{ file.type }}</a></td>
+        <td><a href="{{ url_for_file(product.get_file(FileType.MAIN)) }}">{{ product.name }}.{{ product.type }}</a></td>
       </tr>
     {% endfor %}
   </table>
