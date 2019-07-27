@@ -58,21 +58,19 @@
   
   <table class="table is-striped is-narrow is-fullwidth is-hoverable">
     <tr>
-      <th colspan="2" class="has-text-centered">Date</th>
-      <th></th>
+      <th class="has-text-centered">Date</th>
       <th colspan="2" class="has-text-centered">Size</th>
       <th>Type</th>
       <th>Source</th>
       <th>Region</th>
       <th>Channel</th>
+      <th>Style</th>
       <th><!-- extras --></th>
       <th>URL</th>
     </tr>
     {% for product in products %}
       <tr>
-        <td class="has-text-right">{{ product.localdate.strftime('%a %b %d, %Y') }}</td>
-        <td>{{ product.localdate.strftime('%I:%M:%S %p %Z') }}</td>
-        <td>{{ product.localdate.replace(tzinfo=None)|humanize() }}</td>
+        <td class="has-text-centered"><abbr title="{{ product.localdate.strftime('%a %b %d, %Y, %I:%M:%S %p %Z') }}">{{ product.localdate.replace(tzinfo=None)|humanize() }}</abbr></td>
         {% set nicesize = product.get_file('MAIN').size|humanize('naturalsize') %}
         {% set nicesizeparts = nicesize.split() %}
         <td class="has-text-right">{{ nicesizeparts[0] }}</td>
@@ -81,10 +79,11 @@
         {% else %}
           <td>{{ nicesizeparts[1] }}</td>
         {% endif %}
-        <td>{{ product.type }}</td>
+        <td>{{ product.type.name }}</td>
         <td>{{ product.source }}</td>
         <td>{% if product.region %}{{ product.region }}{% endif %}</td>
         <td>{% if product.channel %}{{ product.channel }}{% endif %}</td>
+        <td>{% if product.style %}{{ product.style.name }}{% endif %}</td>
         <td>
           {% for file in product.files|sort(attribute='type') %}
             {% if file.type != FileType.MAIN %}
@@ -92,7 +91,7 @@
             {% endif %}
           {% endfor %}
         </td>
-        <td><a href="{{ url_for_file(product.get_file(FileType.MAIN)) }}">{{ product.name }}.{{ product.type }}</a></td>
+        <td><a href="{{ url_for_file(product.get_file(FileType.MAIN)) }}">{{ product.name }}.{{ product.ext }}</a></td>
       </tr>
     {% endfor %}
   </table>

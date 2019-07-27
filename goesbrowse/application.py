@@ -45,6 +45,7 @@ def get_db():
         if not app.config.get('SQLALCHEMY_DATABASE_URI'):
             app.config['SQLALCHEMY_DATABASE_URI'] = conf.database
             app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+            #app.config['SQLALCHEMY_ECHO'] = True
             goesbrowse.database.sql.init_app(app)
             goesbrowse.database.migrate.init_app(app, goesbrowse.database.sql)
         db = flask.g._goesbrowse_database = goesbrowse.database.Database(
@@ -138,20 +139,28 @@ app.url_map.converters['filter'] = FilterConverter
 @app.route('/', defaults={'filters': {}})
 @app.route('/<filter:filters>')
 def index(filters):
-    filternames = ['type', 'source', 'region', 'channel']
+    filternames = {
+        'type': goesbrowse.database.Product.type,
+        'source': goesbrowse.database.Product.source,
+        'region': goesbrowse.database.MapProduct.region,
+        'channel': goesbrowse.database.MapProduct.channel,
+        'style': goesbrowse.database.MapProduct.style,
+    }
+
     for k in filters:
         if not k in filternames:
             abort(404)
 
-    query = goesbrowse.database.Product.query
-    query = query.filter_by(**filters)
+    query = goesbrowse.database.Product.query.with_polymorphic('*')
+    query = query.filter(*[filternames[n] == filters[n] for n in filters])
 
     filtervalues = collections.OrderedDict()
-    for k in filternames:
-        values = query.with_entities(getattr(goesbrowse.database.Product, k)).distinct()
+    for k, c in filternames.items():
+        values = query.with_entities(c).distinct()
         if values:
             filtervalues[k] = [v[0] for v in values if v[0]]
             filtervalues[k].sort()
+            filtervalues[k] = [v.name for v in filtervalues[k] if hasattr(v, 'name')]
 
     size = query.join(goesbrowse.database.File).with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.File.size)).first()
     if size is None:

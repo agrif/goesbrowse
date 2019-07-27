@@ -16,32 +16,75 @@ import goesbrowse.projection
 sql = flask_sqlalchemy.SQLAlchemy()
 migrate = flask_migrate.Migrate()
 
+class ProductType(enum.IntEnum):
+    TEXT = 1
+    IMAGE = 2
+    MAP = 3
+
 class Product(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
+    type = sql.Column(sql.Enum(ProductType), index=True)
     meta = sql.Column(sql.JSON)
-    date = sql.Column(sql.DateTime, index=True)
-    type = sql.Column(sql.Text, index=True)
-    name = sql.Column(sql.Text, index=True)
-    source = sql.Column(sql.Text, index=True)
-    region = sql.Column(sql.Text, index=True)
-    channel = sql.Column(sql.Text, index=True)
 
-    projection_id = sql.Column(sql.Integer, sql.ForeignKey('projection.id'))
+    source = sql.Column(sql.Text, index=True)
+    date = sql.Column(sql.DateTime, index=True)
+    name = sql.Column(sql.Text, index=True)
+
     files = sql.relationship(
         'File',
         backref=sql.backref('product', lazy=False),
         lazy=False,
     )
 
+    __mapper_args__ = {
+        'polymorphic_on': type,
+    }
+
     @property
     def localdate(self):
         return self.date.replace(tzinfo=datetime.timezone.utc).astimezone(dateutil.tz.tzlocal())
+
+    @property
+    def ext(self):
+        return self.get_file(FileType.MAIN).ext
 
     def get_file(self, type):
         for f in self.files:
             if f.type == type or f.type.name == type:
                 return f
         return None
+
+class TextProduct(Product):
+    # awips, may be none
+    nnn = sql.Column(sql.Text, index=True)
+    xxx = sql.Column(sql.Text, index=True)
+
+    __mapper_args__ = {
+        'polymorphic_identity': ProductType.TEXT,
+    }
+
+class ImageProduct(Product):
+    width = sql.Column(sql.Integer, index=True)
+    height = sql.Column(sql.Integer, index=True)
+
+    __mapper_args__ = {
+        'polymorphic_identity': ProductType.IMAGE,
+    }
+
+class MapStyle(enum.IntEnum):
+    NORMAL = 1
+    ENHANCED = 2
+    FALSECOLOR = 3
+
+class MapProduct(ImageProduct):
+    region = sql.Column(sql.Text, index=True)
+    channel = sql.Column(sql.Text, index=True)
+    style = sql.Column(sql.Enum(MapStyle), index=True)
+    projection_id = sql.Column(sql.Integer, sql.ForeignKey('projection.id'))
+
+    __mapper_args__ = {
+        'polymorphic_identity': ProductType.MAP,
+    }
 
 class FileType(enum.IntEnum):
     MAIN = 1
@@ -80,7 +123,7 @@ class Projection(sql.Model):
     lon_0 = sql.Column(sql.Float)
 
     products = sql.relationship(
-        'Product',
+        'MapProduct',
         backref=sql.backref('projection', lazy=True),
         lazy=True,
     )
@@ -298,8 +341,11 @@ class Database:
 
         proj = None
         im = None
-        if suffix == 'jpg':
+        try:
             im = PIL.Image.open(datapath)
+        except Exception:
+            pass
+        if im and 'ImageNavigation' in data:
             try:
                 proj = Projection.from_nav(im.size[0], im.size[1], data['ImageNavigation'])
                 if proj:
@@ -307,16 +353,39 @@ class Database:
             except KeyError:
                 proj = None
 
-        newprod = Product(
+        common = dict(
             meta = data,
             date = date,
-            type = suffix,
             name = name,
-            source = source,
-            region = region,
-            channel = channel,
-            projection = proj,
+            source = source.lower(),
         )
+        if im:
+            if proj:
+                style = MapStyle.NORMAL
+                if channel.lower().endswith('_enhanced'):
+                    style = MapStyle.ENHANCED
+                    channel = channel.rsplit('_', 1)[0]
+                if channel.lower() == 'fc':
+                    style = MapStyle.FALSECOLOR
+
+                newprod = MapProduct(
+                    width=im.size[0],
+                    height=im.size[1],
+                    region=region.lower(),
+                    channel=channel.lower(),
+                    projection=proj,
+                    style=style,
+                    **common
+                )
+            else:
+                newprod = ImageProduct(
+                    width=im.size[0],
+                    height=im.size[1],
+                    **common
+                )
+        else:
+            # don't even try to get nnn, xxx yet
+            newprod = TextProduct(**common)
 
         sql.session.add(newprod)
 

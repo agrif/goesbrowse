@@ -30,7 +30,7 @@ def timelapse():
     postroll = 5
     rate = 1 / (8 * 60 * 60)
 
-    prods = goesbrowse.database.Product.query.filter_by(region='FD', source='GOES16', channel='FC').order_by(goesbrowse.database.Product.date)
+    prods = goesbrowse.database.MapProduct.query.filter_by(region='fd', source='goes16', channel='fc').order_by(goesbrowse.database.Product.date)
     lastdate = None
     print('ffconcat version 1.0')
     for p in prods:
