@@ -160,7 +160,7 @@ def index(filters):
         if values:
             filtervalues[k] = [v[0] for v in values if v[0]]
             filtervalues[k].sort()
-            filtervalues[k] = [(v.name if hasattr(v, name) else v) for v in filtervalues[k]]
+            filtervalues[k] = [(v.name if hasattr(v, 'name') else v) for v in filtervalues[k]]
 
     size = query.join(goesbrowse.database.File).with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.File.size)).first()
     if size is None:
