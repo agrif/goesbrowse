@@ -95,6 +95,8 @@ class FileType(enum.IntEnum):
     # whether to hide this in the UI
     @property
     def hidden(self):
+        if self == self.THUMBNAIL:
+            return True
         return False
 
 class File(sql.Model):

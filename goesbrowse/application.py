@@ -24,6 +24,8 @@ humanize = flask_humanize.Humanize(app)
 cache = flask_caching.Cache(app)
 VERY_LONG_TIME = 60 * 60 * 24
 app.jinja_env.globals['FileType'] = goesbrowse.database.FileType
+app.jinja_env.globals['ProductType'] = goesbrowse.database.ProductType
+app.jinja_env.globals['MapStyle'] = goesbrowse.database.MapStyle
 app.jinja_env.add_extension('jinja2_highlight.HighlightExtension')
 app.jinja_env.extend(jinja2_highlight_cssclass = 'highlight')
 

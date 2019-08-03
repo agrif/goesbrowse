@@ -15,7 +15,7 @@
           <select name="{{ name }}" onchange="location = this.value;">
             <option value="{{ url_for_filters() }}">filter on {{ name }}...</option>
             {% for value in values %}
-              <option value="{{ url_for_filters(**{name: value}) }}">{{ value }}</option>
+              <option value="{{ url_for_filters(**{name: value}) }}">{{ value|lower }}</option>
             {% endfor %}
           </select>
         </div>
@@ -60,13 +60,12 @@
     <tr>
       <th class="has-text-centered">Date</th>
       <th colspan="2" class="has-text-centered">Size</th>
-      <th>Type</th>
       <th>Source</th>
       <th>Region</th>
       <th>Channel</th>
-      <th>Style</th>
-      <th><!-- extras --></th>
+      <th><!-- type --></th>
       <th>URL</th>
+      <th><!-- other files --></th>
     </tr>
     {% for product in products %}
       <tr>
@@ -79,19 +78,29 @@
         {% else %}
           <td>{{ nicesizeparts[1] }}</td>
         {% endif %}
-        <td>{{ product.type.name }}</td>
         <td>{{ product.source }}</td>
         <td>{% if product.region %}{{ product.region }}{% endif %}</td>
         <td>{% if product.channel %}{{ product.channel }}{% endif %}</td>
-        <td>{% if product.style %}{{ product.style.name }}{% endif %}</td>
-        <td>
+        <td class="has-text-right">
+          {% if product.type == ProductType.MAP %}
+            {% if product.style == MapStyle.ENHANCED %}
+              <span class="icon-enhanced" title="enhanced"></span>
+            {% elif product.style == MapStyle.FALSECOLOR %}
+              <span class="icon-falsecolor" title="false color"></span>
+            {% endif %}
+          {% endif %}
+          <span class="icon-{{ product.type.name|lower }}" title="{{ product.type.name|lower }}"></span>
+        </td>
+        <td><a href="{{ url_for_file(product.get_file(FileType.MAIN)) }}">{{ product.name }}.{{ product.ext }}</a></td>
+        <td class="has-text-centered">
           {% for file in product.files|sort(attribute='type') %}
-            {% if file.type != FileType.MAIN %}
-              <a href="{{ url_for_file(file) }}">[{{ file.type.name.upper()[0] }}]</a>
+            {% if file.type != FileType.MAIN and not file.type.hidden %}
+              <a href="{{ url_for_file(file) }}">
+                <span class="icon-{{ file.type.name|lower }}" title="{{ file.type.name|lower }}"></span>
+              </a>
             {% endif %}
           {% endfor %}
         </td>
-        <td><a href="{{ url_for_file(product.get_file(FileType.MAIN)) }}">{{ product.name }}.{{ product.ext }}</a></td>
       </tr>
     {% endfor %}
   </table>
