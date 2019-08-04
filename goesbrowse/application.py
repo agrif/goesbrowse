@@ -58,8 +58,8 @@ def get_db():
     return db
 
 GEOJSON_FILES = dict(
-    countries='geojson/ne_50m_admin_0_countries_lakes.json',
-    states='geojson/ne_50m_admin_1_states_provinces_lakes.json',
+    countries='data/geojson/ne_50m_admin_0_countries_lakes.json',
+    states='data/geojson/ne_50m_admin_1_states_provinces_lakes.json',
 )
 
 def get_geojson():
