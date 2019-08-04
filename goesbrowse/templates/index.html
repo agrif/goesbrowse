@@ -87,7 +87,7 @@
             {% if product.channel.lower() in channels %}
               {{ channels[product.channel.lower()] }}
             {% elif product.channel.lower()[:-1] in channels %}
-              {{ channels[product.channel.lower()[:-1] }}
+              {{ channels[product.channel.lower()[:-1]] }}
             {% else %}
               {{ product.channel }}
             {% endif %}
