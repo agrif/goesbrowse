@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% import 'widgets.html' as widgets %}
 
+{% set channels = get_channels() %}
+
 {% block content %}
   <div class="container">
     Showing {{ ((pagination.page - 1) * pagination.per_page + 1)|humanize('intcomma') }} - {{ [pagination.page * pagination.per_page, pagination.total]|min|humanize('intcomma') }} of {{ pagination.total|humanize('intcomma') }} products, total size: {{ size|humanize('naturalsize') }}
@@ -62,7 +64,7 @@
       <th colspan="2" class="has-text-centered">Size</th>
       <th>Source</th>
       <th>Region</th>
-      <th>Channel</th>
+      <th>Description</th>
       <th><!-- type --></th>
       <th>URL</th>
       <th><!-- other files --></th>
@@ -80,7 +82,15 @@
         {% endif %}
         <td>{{ product.source }}</td>
         <td>{% if product.region %}{{ product.region }}{% endif %}</td>
-        <td>{% if product.channel %}{{ product.channel }}{% endif %}</td>
+        <td>
+          {% if product.channel %}
+            {% if product.channel.lower() in channels %}
+              {{ channels[product.channel.lower()] }}
+            {% else %}
+              {{ product.channel }}
+            {% endif %}
+          {% endif %}
+        </td>
         <td class="has-text-right">
           {% if product.type == ProductType.MAP %}
             {% if product.style == MapStyle.ENHANCED %}

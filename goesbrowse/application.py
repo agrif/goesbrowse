@@ -12,6 +12,7 @@ import pygments.lexers
 import pygments.formatters
 import sqlalchemy.sql
 import svgwrite
+import toml
 import werkzeug.routing
 
 import goesbrowse.config
@@ -72,6 +73,19 @@ def get_geojson():
                 geo[k] = geojson.load(f)
         flask.g._goesbrowse_geojson = geo
     return geo
+
+def get_data(path, load=toml.load):
+    global app
+    datacache = getattr(flask.g, '_goesbrowse_data', {})
+    if not path in datacache:
+        with app.open_resource(path, mode='r') as f:
+            datacache[path] = load(f)
+        flask.g._goesbrowse_data = datacache
+    return datacache[path]
+
+def get_channels():
+    return get_data('data/channels.toml')
+app.jinja_env.globals['get_channels'] = get_channels
 
 # helper to create a url to current page, with modified args
 def url_for_args(**kwargs):
