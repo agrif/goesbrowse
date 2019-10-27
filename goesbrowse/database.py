@@ -230,7 +230,7 @@ class Database:
     def size(self):
         return self.get_size()
 
-    def get_above_quota(self):
+    def get_above_quota(self, page_size=10):
         if not self.quota:
             return
 
@@ -239,12 +239,15 @@ class Database:
             return
 
         # fixme: https://gist.github.com/Gizmokid2005/2bb9cc3746f4f0ea0dbfb83e7d64a8da
-        for prod in Product.query.order_by(Product.date).all():
-            for file in prod.files:
-                excess -= file.size
-            yield prod
-            if excess <= 0:
-                break
+        offset = 0
+        while excess > 0:
+            for prod in Product.query.order_by(Product.date).limit(page_size).offset(offset).all():
+                for file in prod.files:
+                    excess -= file.size
+                yield prod
+                offset += 1
+                if excess <= 0:
+                    break
 
     def remove_empty_dirs(self, path, dry_run=False):
         path = path.resolve()
@@ -260,7 +263,9 @@ class Database:
     def update(self):
         for jsonpath in self.root.rglob('*.json'):
             self.update_file(jsonpath)
+        print('committing...')
         sql.session.commit()
+        print('done.')
 
     def clean(self, dry_run=False):
         for prod in list(self.get_above_quota()):
@@ -275,7 +280,9 @@ class Database:
             if not dry_run:
                 sql.session.delete(prod)
         if not dry_run:
+            print('committing...')
             sql.session.commit()
+            print('done.')
         self.remove_empty_dirs(self.root, dry_run=dry_run)
 
     def update_file(self, jsonpath):
