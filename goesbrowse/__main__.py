@@ -23,6 +23,15 @@ def clean(dry_run):
     appdb.clean(dry_run=dry_run)
 
 @cli.command()
+@click.option('--dry-run', '-n', is_flag=True)
+def cron(dry_run):
+    appdb = goesbrowse.application.get_db()
+    try:
+        appdb.update()
+    finally:
+        appdb.clean(dry_run=dry_run)
+
+@cli.command()
 def timelapse():
     conf = goesbrowse.application.get_config()
     appdb = goesbrowse.application.get_db()
