@@ -1,0 +1,10 @@
+[Unit]
+Description=Update GOESBrowse database.
+
+[Service]
+Type=oneshot
+ExecStart=/home/pi/goesbrowse/local/env/bin/python -m goesbrowse cron
+User=pi
+WorkingDirectory=/home/pi/goesbrowse
+StandardOutput=null
+StandardError=journal

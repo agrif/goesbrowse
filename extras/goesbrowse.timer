@@ -1,0 +1,10 @@
+[Unit]
+Description=Update GOESBrowse database every 10 minutes.
+
+[Timer]
+OnCalendar=*:0/10
+Persistent=true
+Unit=goesbrowse.service
+
+[Install]
+WantedBy=multi-user.target

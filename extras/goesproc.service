@@ -1,0 +1,18 @@
+[Unit]
+Description=Process GOES packets.
+After=goesrecv
+Requires=goesrecv
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/goesproc -c /home/pi/goesproc-goesr.conf -m packet --subscribe tcp://127.0.0.1:5004
+Restart=on-failure
+RestartSec=30
+User=pi
+WorkingDirectory=/home/pi/received
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+

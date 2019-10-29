@@ -1,0 +1,15 @@
+[Unit]
+Description=Receive GOES packets.
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/goesrecv -c /home/pi/goesrecv.conf
+Restart=on-failure
+RestartSec=30
+User=pi
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+
