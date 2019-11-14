@@ -4,6 +4,7 @@ import json
 import math
 import pathlib
 import re
+import traceback
 
 import dateutil.tz
 import flask_migrate
@@ -262,7 +263,13 @@ class Database:
 
     def update(self):
         for jsonpath in self.root.rglob('*.json'):
-            self.update_file(jsonpath)
+            try:
+                self.update_file(jsonpath)
+            except Exception as e:
+                # we must continue, or quotas won't even barely work...
+                # shouldn't touch the database unless everything else works first
+                # but print a traceback, at least
+                traceback.print_exc()
         print('committing...')
         sql.session.commit()
         print('done.')
