@@ -83,15 +83,62 @@ def get_data(path, load=toml.load):
         flask.g._goesbrowse_data = datacache
     return datacache[path]
 
+def register_jinja(f):
+    global app
+    app.jinja_env.globals[f.__name__] = f
+    return f
+
+@register_jinja
 def get_channels():
     return get_data('data/channels.toml')
-app.jinja_env.globals['get_channels'] = get_channels
 
+@register_jinja
 def get_awips_nnn():
     return get_data('data/awips-nnn.toml')
-app.jinja_env.globals['get_awips_nnn'] = get_awips_nnn
+
+@register_jinja
+def human_type(s):
+    return s.capitalize()
+
+@register_jinja
+def human_source(s):
+    if s.lower().startswith('goes'):
+        return s.upper()
+    if s.lower() == 'nws':
+        return s.upper()
+    return s.capitalize()
+
+@register_jinja
+def human_region(s):
+    return s.upper()
+
+@register_jinja
+def human_channel(s):
+    channels = get_channels()
+    s = s.lower()
+    if s in channels:
+        return channels[s]
+    if s[:-1] in channels:
+        return channels[s[:-1]]
+    return s.upper()
+
+@register_jinja
+def human_nnn(s):
+    nnns = get_awips_nnn()
+    s = s.lower()
+    if s in nnns:
+        return nnns[s]
+    return s.upper()
+
+@register_jinja
+def human_style(s):
+    s = s.lower()
+    if s == 'falsecolor':
+        return 'False Color'
+    return s.capitalize()
 
 # helper to create a url to current page, with modified args
+@register_jinja
 def url_for_args(**kwargs):
     args = flask.request.view_args.copy()
     for k, v in flask.request.args.items():
@@ -103,9 +150,9 @@ def url_for_args(**kwargs):
         else:
             args[k] = v
     return flask.url_for(flask.request.endpoint, **args)
-app.jinja_env.globals['url_for_args'] = url_for_args
 
 # helper to create a url with a new filter added
+@register_jinja
 def url_for_filters(**kwargs):
     args = flask.request.view_args.copy()
     args['filters'] = args.get('filters', {}).copy()
@@ -116,7 +163,6 @@ def url_for_filters(**kwargs):
         else:
             args['filters'][k] = v
     return flask.url_for(flask.request.endpoint, **args)
-app.jinja_env.globals['url_for_filters'] = url_for_filters
 
 # turn a url part into a product, directly
 class ProductConverter(werkzeug.routing.BaseConverter):
@@ -136,12 +182,12 @@ class ProductConverter(werkzeug.routing.BaseConverter):
 app.url_map.converters['product'] = ProductConverter
 
 # helper to make a url to a product, raw or not
+@register_jinja
 def url_for_file(file, raw=False):
     if raw:
         return flask.url_for('file_view_raw', p=file.product, type=file.type.name.lower(), ext=file.ext)
     else:
         return flask.url_for('file_view', p=file.product, type=file.type.name.lower())
-app.jinja_env.globals['url_for_file'] = url_for_file
 
 # turn a url part into substitute query parameters
 class FilterConverter(werkzeug.routing.BaseConverter):
@@ -160,11 +206,12 @@ app.url_map.converters['filter'] = FilterConverter
 @app.route('/<filter:filters>')
 def index(filters):
     filternames = {
-        'type': goesbrowse.database.Product.type,
-        'source': goesbrowse.database.Product.source,
-        'region': goesbrowse.database.MapProduct.region,
-        'channel': goesbrowse.database.MapProduct.channel,
-        'style': goesbrowse.database.MapProduct.style,
+        'type': (goesbrowse.database.Product.type, human_type),
+        'source': (goesbrowse.database.Product.source, human_source),
+        'region': (goesbrowse.database.MapProduct.region, human_region),
+        'channel': (goesbrowse.database.MapProduct.channel, human_channel),
+        'subject': (goesbrowse.database.TextProduct.nnn, human_nnn),
+        'style': (goesbrowse.database.MapProduct.style, human_style),
     }
 
     for k in filters:
@@ -172,10 +219,11 @@ def index(filters):
             abort(404)
 
     query = goesbrowse.database.Product.query.with_polymorphic('*')
-    query = query.filter(*[filternames[n] == filters[n] for n in filters])
+    query = query.filter(*[filternames[n][0] == filters[n] for n in filters])
 
     filtervalues = collections.OrderedDict()
-    for k, c in filternames.items():
+    filterhumanize = {k: f for k, (_, f) in filternames.items()}
+    for k, (c, _) in filternames.items():
         values = query.with_entities(c).distinct()
         if values:
             filtervalues[k] = [v[0] for v in values if v[0]]
@@ -197,7 +245,7 @@ def index(filters):
     query = query.order_by(goesbrowse.database.Product.date.desc())
     pagination = query.paginate(page, per_page)
 
-    return flask.render_template('index.html', products=pagination.items, size=size, filtervalues=filtervalues, filters=filters, pagination=pagination)
+    return flask.render_template('index.html', products=pagination.items, size=size, filtervalues=filtervalues, filters=filters, filterhumanize=filterhumanize, pagination=pagination)
 
 @app.route('/highlight.css')
 @cache.cached(timeout=VERY_LONG_TIME)

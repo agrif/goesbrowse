@@ -13,12 +13,12 @@
 
   <div class="field is-grouped is-grouped-multiline">
     {% for name, values in filtervalues.items() %}
-      {% if filters.get(name) != values[0] %}
+      {% if values and values|length > 1 and filters.get(name) != values [0] %}
         <div class="select is-small">
           <select name="{{ name }}" onchange="location = this.value;">
             <option value="{{ url_for_filters() }}">filter on {{ name }}...</option>
             {% for value in values %}
-              <option value="{{ url_for_filters(**{name: value}) }}">{{ value|lower }}</option>
+              <option value="{{ url_for_filters(**{name: value}) }}">{{ filterhumanize[name](value) }}</option>
             {% endfor %}
           </select>
         </div>
@@ -36,7 +36,7 @@
           <div class="tags has-addons">
             <span class="tag">{{ name }}</span>
             <span class="tag is-info">
-              {{ values[0] }}
+              {{ filterhumanize[name](values[0]) }}
               <a class="delete is-small" href="{{ url_for_filters(**{name: None}) }}"></a>
             </span>
           </div>
@@ -81,24 +81,14 @@
         {% else %}
           <td>{{ nicesizeparts[1] }}</td>
         {% endif %}
-        <td>{{ product.source }}</td>
-        <td>{% if product.region %}{{ product.region }}{% endif %}</td>
+        <td>{{ human_source(product.source) }}</td>
+        <td>{% if product.region %}{{ human_region(product.region) }}{% endif %}</td>
         <td>
           {% if product.channel %}
-            {% if product.channel.lower() in channels %}
-              {{ channels[product.channel.lower()] }}
-            {% elif product.channel.lower()[:-1] in channels %}
-              {{ channels[product.channel.lower()[:-1]] }}
-            {% else %}
-              {{ product.channel }}
-            {% endif %}
+            {{ human_channel(product.channel) }}
           {% endif %}
           {% if product.nnn %}
-            {% if product.nnn.lower() in nnns %}
-              {{ nnns[product.nnn.lower()] }}
-            {% else %}
-              {{ product.nnn|upper }}
-            {% endif %}
+            {{ human_nnn(product.nnn) }}
           {% endif %}
         </td>
         <td class="has-text-right">
