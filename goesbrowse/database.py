@@ -13,6 +13,7 @@ import PIL.Image
 import sqlalchemy.sql
 
 import goesbrowse.projection
+import goesbrowse.application # only used for get_awips_nnn
 
 sql = flask_sqlalchemy.SQLAlchemy()
 migrate = flask_migrate.Migrate()
@@ -400,8 +401,15 @@ class Database:
                     **common
                 )
         else:
-            # don't even try to get nnn, xxx yet
-            newprod = TextProduct(**common)
+            # try to detect an awips nnn, xxx
+            nnns = goesbrowse.application.get_awips_nnn()
+            if len(common['name']) >= 5:
+                nnn = common['name'][:3].lower()
+                xxx = common['name'][3:].lower()
+                if nnn in nnns:
+                    newprod = TextProduct(**common, nnn=nnn, xxx=xxx)
+                else:
+                    newprod = TextProduct(**common)
 
         sql.session.add(newprod)
 

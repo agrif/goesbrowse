@@ -87,6 +87,10 @@ def get_channels():
     return get_data('data/channels.toml')
 app.jinja_env.globals['get_channels'] = get_channels
 
+def get_awips_nnn():
+    return get_data('data/awips-nnn.toml')
+app.jinja_env.globals['get_awips_nnn'] = get_awips_nnn
+
 # helper to create a url to current page, with modified args
 def url_for_args(**kwargs):
     args = flask.request.view_args.copy()

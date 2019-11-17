@@ -2,6 +2,7 @@
 {% import 'widgets.html' as widgets %}
 
 {% set channels = get_channels() %}
+{% set nnns = get_awips_nnn() %}
 
 {% block content %}
   <div class="container">
@@ -90,6 +91,13 @@
               {{ channels[product.channel.lower()[:-1]] }}
             {% else %}
               {{ product.channel }}
+            {% endif %}
+          {% endif %}
+          {% if product.nnn %}
+            {% if product.nnn.lower() in nnns %}
+              {{ nnns[product.nnn.lower()] }}
+            {% else %}
+              {{ product.nnn|upper }}
             {% endif %}
           {% endif %}
         </td>
