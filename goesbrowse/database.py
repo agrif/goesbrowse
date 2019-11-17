@@ -313,6 +313,7 @@ class Database:
 
         # attempt some heuristics to split filename
         filedateformat = '%Y%m%dT%H%M%SZ'
+        filedateformatalt = "%Y%m%d%H%M%S"
         try:
             name, date = jsonpath.stem.rsplit('_', 1)
             date = datetime.datetime.strptime(date, filedateformat)
@@ -329,6 +330,13 @@ class Database:
             except ValueError:
                 date, name = jsonpath.stem.split('_', 1)
                 date = datetime.datetime.strptime(date, filedateformat)
+                # sometimes, the name still contains a date. yes, really
+                # more fun: the second date is usually more accurate (??!)
+                try:
+                    date, name = name.split('-', 1)
+                    date = datetime.datetime.strptime(date, filedateformatalt)
+                except ValueError:
+                    pass
                 meta_from_name = False
                 swap_region_channel = False
 
