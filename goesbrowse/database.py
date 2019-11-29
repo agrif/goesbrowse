@@ -88,6 +88,10 @@ class MapProduct(ImageProduct):
         'polymorphic_identity': ProductType.MAP,
     }
 
+# all product types should be defined by here, because we are about to
+# create an OMEGA-INDEX to help joint filters
+sql.Index('idx_filter', Product.type, Product.source, MapProduct.region, MapProduct.channel, MapProduct.style, TextProduct.nnn)
+
 class FileType(enum.IntEnum):
     MAIN = 1
     META = 2
