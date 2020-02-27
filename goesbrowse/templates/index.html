@@ -6,7 +6,7 @@
 
 {% block content %}
   <div class="container">
-    Showing {{ ((pagination.page - 1) * pagination.per_page + 1)|humanize('intcomma') }} - {{ [pagination.page * pagination.per_page, pagination.total]|min|humanize('intcomma') }} of {{ pagination.total|humanize('intcomma') }} products, total size: {{ size|humanize('naturalsize') }}
+    Showing {{ ((pagination.page - 1) * pagination.per_page + 1)|humanize('intcomma') }} - {{ [pagination.page * pagination.per_page, pagination.total]|min|humanize('intcomma') }} of {{ pagination.total|humanize('intcomma') }} products
   </div>
 
   <br>

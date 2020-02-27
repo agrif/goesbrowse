@@ -230,11 +230,11 @@ def index(filters):
             filtervalues[k].sort()
             filtervalues[k] = [(v.name if hasattr(v, 'name') else v) for v in filtervalues[k]]
 
-    size = query.join(goesbrowse.database.File).with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.File.size)).first()
-    if size is None:
-        size = 0
-    else:
-        size = size[0]
+    #size = query.join(goesbrowse.database.File).with_entities(sqlalchemy.sql.func.sum(goesbrowse.database.File.size)).first()
+    #if size is None:
+    #    size = 0
+    #else:
+    #    size = size[0]
 
     per_page = 20
     try:
@@ -245,7 +245,7 @@ def index(filters):
     query = query.order_by(goesbrowse.database.Product.date.desc())
     pagination = query.paginate(page, per_page)
 
-    return flask.render_template('index.html', products=pagination.items, size=size, filtervalues=filtervalues, filters=filters, filterhumanize=filterhumanize, pagination=pagination)
+    return flask.render_template('index.html', products=pagination.items, filtervalues=filtervalues, filters=filters, filterhumanize=filterhumanize, pagination=pagination)
 
 @app.route('/highlight.css')
 @cache.cached(timeout=VERY_LONG_TIME)
