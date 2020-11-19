@@ -245,6 +245,10 @@ def index(filters):
     query = query.order_by(goesbrowse.database.Product.date.desc())
     pagination = query.paginate(page, per_page)
 
+    #import flask_sqlalchemy
+    #import pprint
+    #pprint.pprint(flask_sqlalchemy.get_debug_queries())
+
     return flask.render_template('index.html', products=pagination.items, filtervalues=filtervalues, filters=filters, filterhumanize=filterhumanize, pagination=pagination)
 
 @app.route('/highlight.css')

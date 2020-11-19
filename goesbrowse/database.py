@@ -25,12 +25,12 @@ class ProductType(enum.IntEnum):
 
 class Product(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
-    type = sql.Column(sql.Enum(ProductType), index=True)
+    type = sql.Column(sql.Enum(ProductType))
     meta = sql.Column(sql.JSON)
 
-    source = sql.Column(sql.Text, index=True)
+    source = sql.Column(sql.Text)
     date = sql.Column(sql.DateTime, index=True)
-    name = sql.Column(sql.Text, index=True)
+    name = sql.Column(sql.Text)
 
     files = sql.relationship(
         'File',
@@ -58,16 +58,16 @@ class Product(sql.Model):
 
 class TextProduct(Product):
     # awips, may be none
-    nnn = sql.Column(sql.Text, index=True)
-    xxx = sql.Column(sql.Text, index=True)
+    nnn = sql.Column(sql.Text)
+    xxx = sql.Column(sql.Text)
 
     __mapper_args__ = {
         'polymorphic_identity': ProductType.TEXT,
     }
 
 class ImageProduct(Product):
-    width = sql.Column(sql.Integer, index=True)
-    height = sql.Column(sql.Integer, index=True)
+    width = sql.Column(sql.Integer)
+    height = sql.Column(sql.Integer)
 
     __mapper_args__ = {
         'polymorphic_identity': ProductType.IMAGE,
@@ -79,9 +79,9 @@ class MapStyle(enum.IntEnum):
     FALSECOLOR = 3
 
 class MapProduct(ImageProduct):
-    region = sql.Column(sql.Text, index=True)
-    channel = sql.Column(sql.Text, index=True)
-    style = sql.Column(sql.Enum(MapStyle), index=True)
+    region = sql.Column(sql.Text)
+    channel = sql.Column(sql.Text)
+    style = sql.Column(sql.Enum(MapStyle))
     projection_id = sql.Column(sql.Integer, sql.ForeignKey('projection.id'))
 
     __mapper_args__ = {
@@ -89,8 +89,11 @@ class MapProduct(ImageProduct):
     }
 
 # all product types should be defined by here, because we are about to
-# create an OMEGA-INDEX to help joint filters
-sql.Index('idx_filter', Product.type, Product.source, MapProduct.region, MapProduct.channel, MapProduct.style, TextProduct.nnn)
+# create an OMEGA-INDEX to help find valid filters
+# (but we don't want to use this to actually filter, because sorting costs
+# much more and we'd rather use the date index then, so prefix with id)
+# specifically, this helps with SELECT DISTINCT filtercol WHERE filtercol2...
+sql.Index('ix_product_filter', Product.id, Product.type, Product.source, MapProduct.region, MapProduct.channel, MapProduct.style, TextProduct.nnn)
 
 class FileType(enum.IntEnum):
     MAIN = 1
@@ -108,14 +111,18 @@ class FileType(enum.IntEnum):
 class File(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
     path = sql.Column(sql.Text, index=True, unique=True)
-    size = sql.Column(sql.Integer, index=True)
-    type = sql.Column(sql.Enum(FileType), index=True)
+    size = sql.Column(sql.Integer)
+    type = sql.Column(sql.Enum(FileType))
 
     product_id = sql.Column(sql.Integer, sql.ForeignKey('product.id'))
 
     @property
     def ext(self):
         return pathlib.Path(self.path).suffix.lstrip('.').lower()
+
+# use a joint index on product_id and type, since those are usually used
+# together (and in that order)
+sql.Index('ix_file_product_id_type', File.product_id, File.type)
 
 class Projection(sql.Model):
     id = sql.Column(sql.Integer, primary_key=True)
