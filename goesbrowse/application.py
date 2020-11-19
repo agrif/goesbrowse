@@ -202,6 +202,67 @@ class FilterConverter(werkzeug.routing.BaseConverter):
         return werkzeug.routing._fast_url_quote(url.encode(self.map.charset))
 app.url_map.converters['filter'] = FilterConverter
 
+# pagination helper
+# (the flask-sqlalchemy one does *weird stuff* to count queries, so...)
+class Pagination:
+    def __init__(self, query, total, page, per_page):
+        self.query = query
+        self.total = total
+        self.page = page
+        self.per_page = per_page
+
+        self.pages = int(math.ceil(total / per_page))
+        self.has_next = page >= 1 and page < self.pages
+        self.has_prev = page > 1 and page <= self.pages
+        self.items = query.limit(per_page).offset((page - 1) * per_page).all()
+        self.next_num = page + 1 if self.has_next else None
+        self.prev_num = page - 1 if self.has_prev else None
+
+    def page_valid(self, page):
+        if page:
+            if page <= self.pages and page >= 1:
+                return True
+        return False
+
+    def page_at(self, page):
+        if self.page_valid(page):
+            return Pagination(self.query, self.total, page, self.per_page)
+        return None
+
+    def next(self):
+        return self.page_at(self.next_num)
+
+    def prev(self):
+        return self.page_at(self.prev_num)
+
+    def iter_pages(self, left_edge=2, left_current=2, right_current=5, right_edge=2):
+        page = 1
+        while page <= left_edge:
+            if not self.page_valid(page):
+                return
+            yield page
+            page += 1
+
+        if page < self.page - left_current:
+            page = self.page - left_current
+            yield None
+
+        while page <= self.page + right_current:
+            if not self.page_valid(page):
+                return
+            yield page
+            page += 1
+
+        if page < self.pages - right_edge + 1:
+            page = self.pages - right_edge + 1
+            yield None
+
+        while page <= self.pages:
+            if not self.page_valid(page):
+                return
+            yield page
+            page += 1
+
 @app.route('/', defaults={'filters': {}})
 @app.route('/<filter:filters>')
 def index(filters):
@@ -219,7 +280,9 @@ def index(filters):
             abort(404)
 
     query = goesbrowse.database.Product.query.with_polymorphic('*')
+    count = goesbrowse.database.sql.session.query(sqlalchemy.sql.func.count(goesbrowse.database.Product.id))
     query = query.filter(*[filternames[n][0] == filters[n] for n in filters])
+    count = count.filter(*[filternames[n][0] == filters[n] for n in filters])
 
     filtervalues = collections.OrderedDict()
     filterhumanize = {k: f for k, (_, f) in filternames.items()}
@@ -243,7 +306,7 @@ def index(filters):
         page = 1
 
     query = query.order_by(goesbrowse.database.Product.date.desc())
-    pagination = query.paginate(page, per_page)
+    pagination = Pagination(query, count.first_or_404()[0], page, per_page)
 
     #import flask_sqlalchemy
     #import pprint
