@@ -11,11 +11,13 @@ import flask_migrate
 import flask_sqlalchemy
 import PIL.Image
 import sqlalchemy.sql
+import sqlalchemy.ext.baked
 
 import goesbrowse.projection
 import goesbrowse.application # only used for get_awips_nnn
 
 sql = flask_sqlalchemy.SQLAlchemy()
+bakery = sqlalchemy.ext.baked.bakery()
 migrate = flask_migrate.Migrate()
 
 class ProductType(enum.IntEnum):
@@ -230,18 +232,9 @@ class Database:
         self.root = pathlib.Path(root).resolve()
         self.thumbnail = thumbnail
 
-    def get_size(self, query=None):
-        if query is None:
-            query = File.query
-        query = query.join(File.product)
-        s = query.with_entities(sqlalchemy.sql.func.sum(File.size)).first()
-        if not s:
-            return 0
-        return s[0]
-
     @property
     def size(self):
-        return self.get_size()
+        return sql.session.query(sqlalchemy.sql.func.sum(File.size)).first()[0]
 
     def get_above_quota(self, page_size=10):
         if not self.quota:
@@ -302,11 +295,16 @@ class Database:
             print('committing...')
             sql.session.commit()
             print('done.')
+        print('cleaning directories...')
         self.remove_empty_dirs(self.root, dry_run=dry_run)
+
+    def file_known(self, jsonpathrel):
+        q = bakery(lambda session: session.query(File.id).filter_by(path=sqlalchemy.bindparam('path')))
+        return bool(q(sql.session()).params(path=str(jsonpathrel)).first())
 
     def update_file(self, jsonpath):
         jsonpathrel = jsonpath.relative_to(self.root)
-        if File.query.filter_by(path=str(jsonpathrel)).first():
+        if self.file_known(jsonpathrel):
             # already exists, skip it
             return
         print('updating', jsonpathrel)
