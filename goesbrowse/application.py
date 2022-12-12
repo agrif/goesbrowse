@@ -1,9 +1,11 @@
 import collections
+import datetime
 import json
 import math
 import re
 
 import flask
+import flask_accept
 import flask_caching
 import flask_humanize
 import geojson
@@ -263,9 +265,7 @@ class Pagination:
             yield page
             page += 1
 
-@app.route('/', defaults={'filters': {}})
-@app.route('/<filter:filters>')
-def index(filters):
+def query_filters(filters):
     filternames = {
         'type': (goesbrowse.database.Product.type, human_type),
         'source': (goesbrowse.database.Product.source, human_source),
@@ -299,6 +299,13 @@ def index(filters):
     #else:
     #    size = size[0]
 
+    return (query, count, filtervalues, filterhumanize)
+
+@app.route('/', defaults={'filters': {}})
+@app.route('/<filter:filters>')
+def index(filters):
+    query, count, filtervalues, filterhumanize = query_filters(filters)
+
     per_page = 20
     try:
         page = int(flask.request.args['page'])
@@ -314,6 +321,15 @@ def index(filters):
 
     return flask.render_template('index.html', products=pagination.items, filtervalues=filtervalues, filters=filters, filterhumanize=filterhumanize, pagination=pagination)
 
+@app.route('/latest', defaults={'filters': {}, 'type': 'main'})
+@app.route('/<filter:filters>/latest/', defaults={'type': 'main'})
+@app.route('/<filter:filters>/latest/<type>')
+def latest_view(filters, type):
+    query, _, _, _ = query_filters(filters)
+    query = query.order_by(goesbrowse.database.Product.date.desc())
+    product = query.first_or_404()
+    return flask.redirect(flask.url_for('file_view', p=product, type=type))
+
 @app.route('/highlight.css')
 @cache.cached(timeout=VERY_LONG_TIME)
 def highlight_css():
@@ -324,6 +340,7 @@ def highlight_css():
 
 @app.route('/<product:p>/', defaults={'type': 'main'})
 @app.route('/<product:p>/<type>/')
+@flask_accept.accept_fallback
 def file_view(p, type):
     p = goesbrowse.database.Product.query.get(p)
     file = p.get_file(type.upper())
@@ -338,6 +355,39 @@ def file_view(p, type):
     if file.ext == 'json':
         content = json.dumps(p.meta, indent=2)
     return flask.render_template('file.html', product=p, file=file, content=content)
+
+@file_view.support('application/json')
+def file_view_json(p, type):
+    p = goesbrowse.database.Product.query.get(p)
+    # we ignore type for json requests -- we just dump everything!
+
+    # a bit of a hack to jsonify models without too much work
+    result = {}
+    for c in p.__table__.columns:
+        if not hasattr(p, c.name):
+            continue
+
+        key = c.name
+        val = getattr(p, c.name)
+        # touchups...
+        if c.name == 'id':
+            continue
+        elif c.name == 'date':
+            val = val.isoformat()
+        elif c.name == 'projection_id':
+            key = 'map'
+            val = flask.url_for('map', id=p.projection.id)
+        elif hasattr(val, 'name'):
+            val = val.name
+
+        result[key] = val
+
+    # and just provide the related file urls...
+    result['files'] = {}
+    for f in p.files:
+        result['files'][f.type.name] = url_for_file(f, raw=True)
+
+    return flask.jsonify(**result)
 
 @app.route('/<product:p>.<ext>', defaults={'type': 'main'})
 @app.route('/<product:p>.<type>.<ext>')
