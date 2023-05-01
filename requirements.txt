@@ -1,7 +1,7 @@
 alembic==1.0.11
 attrs==19.1.0
 Click==7.0
-Flask==1.0.3
+Flask==2.3.2
 flask-accept==0.0.6
 Flask-Caching==1.7.2
 Flask-Humanize==0.3.0
